@@ -7,6 +7,11 @@ import (
 	"unicode"
 )
 
+// SqlStatement is a SQL statement.
+type SqlStatement interface {
+	statement()
+}
+
 // SqlExpr is an expression in a SQL statement.
 type SqlExpr interface {
 	sqlExpr()
@@ -25,12 +30,14 @@ type SqlSelect struct {
 	TableName  SqlIdentifier
 }
 
+func (SqlSelect) statement() {}
+
 // Parse parses a SELECT statement with one identifier and one table name.
-func Parse(query string) (SqlSelect, error) {
+func Parse(query string) (SqlStatement, error) {
 	parts := strings.Fields(query)
 	if len(parts) != 4 || !strings.EqualFold(parts[0], "SELECT") ||
 		!strings.EqualFold(parts[2], "FROM") || !identifier(parts[1]) || !identifier(parts[3]) {
-		return SqlSelect{}, fmt.Errorf("invalid SELECT statement: %q", query)
+		return nil, fmt.Errorf("invalid SELECT statement: %q", query)
 	}
 	return SqlSelect{
 		Projection: []SqlExpr{SqlIdentifier{ID: parts[1]}},
