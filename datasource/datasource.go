@@ -9,8 +9,9 @@ import (
 
 // Field describes one column of a data source or query result.
 type Field struct {
-	Name string
-	Type arrow.DataType
+	Name      string
+	Type      arrow.DataType
+	Qualifier string
 }
 
 // Schema describes the ordered fields produced by a data source or plan.

@@ -65,7 +65,7 @@ func TestProjectionSchemaReportsSelectedColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Schema() returned an error: %v", err)
 	}
-	wantSchema := datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}}
+	wantSchema := datasource.Schema{Fields: []datasource.Field{{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Float64}}}
 	if !reflect.DeepEqual(schema, wantSchema) {
 		t.Errorf("Schema() = %#v; want %#v", schema, wantSchema)
 	}
@@ -146,5 +146,50 @@ func TestAverageOfIntegersHasFloatSchema(t *testing.T) {
 	}
 	if !arrow.TypeEqual(field.Type, arrow.PrimitiveTypes.Float64) {
 		t.Errorf("average type = %v; want float64", field.Type)
+	}
+}
+
+func TestBuildLogicalPlanForLeftJoin(t *testing.T) {
+	query := parser.SqlSelect{
+		Projection: []parser.SqlExpr{
+			parser.SqlIdentifier{Qualifier: "sales", ID: "product_id"},
+		},
+		TableName: parser.SqlIdentifier{ID: "sales"},
+		Join: &parser.SqlJoin{
+			Type:      parser.LeftJoin,
+			TableName: parser.SqlIdentifier{ID: "products"},
+			LeftKey:   parser.SqlIdentifier{Qualifier: "sales", ID: "product_id"},
+			RightKey:  parser.SqlIdentifier{Qualifier: "products", ID: "product_id"},
+		},
+	}
+	sales := testSource{schema: datasource.Schema{Fields: []datasource.Field{
+		{Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
+	}}}
+	products := testSource{schema: datasource.Schema{Fields: []datasource.Field{
+		{Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "product", Type: arrow.BinaryTypes.String},
+	}}}
+	tables := map[string]datasource.DataSource{"sales": sales, "products": products}
+
+	got, err := logicalplan.BuildLogicalPlan(query, tables)
+	if err != nil {
+		t.Fatalf("BuildLogicalPlan() returned an error: %v", err)
+	}
+
+	want := logicalplan.Projection{
+		Input: logicalplan.Join{
+			Left:  logicalplan.Scan{TableName: "sales", Source: sales},
+			Right: logicalplan.Scan{TableName: "products", Source: products},
+			Type:  logicalplan.LeftJoin,
+			On: []logicalplan.JoinKey{
+				{Left: "product_id", Right: "product_id"},
+			},
+		},
+		Expr: []logicalplan.LogicalExpr{
+			logicalplan.Column{Qualifier: "sales", Name: "product_id"},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("BuildLogicalPlan() = %#v; want %#v", got, want)
 	}
 }

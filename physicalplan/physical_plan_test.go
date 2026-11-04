@@ -39,7 +39,7 @@ func TestBuildPhysicalPlan(t *testing.T) {
 
 	want := physicalplan.ProjectionExec{
 		Input:  physicalplan.ScanExec{Source: source},
-		Schema: datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}},
+		Schema: datasource.Schema{Fields: []datasource.Field{{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Float64}}},
 		Expr: []physicalplan.PhysicalExpr{
 			physicalplan.ColumnExpr{Index: 1},
 		},
@@ -78,7 +78,7 @@ func TestBuildPhysicalPlanForGroupedAverage(t *testing.T) {
 		Input: physicalplan.HashAggregateExec{
 			Input: physicalplan.ScanExec{Source: source},
 			Schema: datasource.Schema{Fields: []datasource.Field{
-				{Name: "category", Type: arrow.BinaryTypes.String},
+				{Qualifier: "inventory", Name: "category", Type: arrow.BinaryTypes.String},
 				{Name: "AVG", Type: arrow.PrimitiveTypes.Float64},
 			}},
 			GroupExpr: []physicalplan.PhysicalExpr{

@@ -214,10 +214,17 @@ func buildPhysicalExpr(expr logicalplan.LogicalExpr, schema datasource.Schema) (
 		return nil, fmt.Errorf("unsupported logical expression: %T", expr)
 	}
 
+	index := -1
 	for i, field := range schema.Fields {
-		if field.Name == column.Name {
-			return ColumnExpr{Index: i}, nil
+		if field.Name == column.Name && (column.Qualifier == "" || field.Qualifier == column.Qualifier) {
+			if index >= 0 {
+				return nil, fmt.Errorf("ambiguous column %q", column.String())
+			}
+			index = i
 		}
 	}
-	return nil, fmt.Errorf("no column named %q", column.Name)
+	if index < 0 {
+		return nil, fmt.Errorf("no column named %q", column.String())
+	}
+	return ColumnExpr{Index: index}, nil
 }

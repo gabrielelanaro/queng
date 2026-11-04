@@ -37,7 +37,50 @@ type Scan struct {
 
 func (Scan) Children() []LogicalPlan { return nil }
 
-func (s Scan) Schema() (datasource.Schema, error) { return s.Source.Schema(), nil }
+func (s Scan) Schema() (datasource.Schema, error) {
+	schema := s.Source.Schema()
+	fields := append([]datasource.Field(nil), schema.Fields...)
+	for i := range fields {
+		fields[i].Qualifier = s.TableName
+	}
+	return datasource.Schema{Fields: fields}, nil
+}
+
+// JoinType describes how a join handles unmatched rows.
+type JoinType uint8
+
+const LeftJoin JoinType = 1
+
+// JoinKey identifies the matching columns in the left and right inputs.
+type JoinKey struct {
+	Left  string
+	Right string
+}
+
+// Join combines rows from two inputs using equality keys.
+type Join struct {
+	Left  LogicalPlan
+	Right LogicalPlan
+	Type  JoinType
+	On    []JoinKey
+}
+
+func (j Join) Children() []LogicalPlan { return []LogicalPlan{j.Left, j.Right} }
+
+func (j Join) Schema() (datasource.Schema, error) {
+	left, err := j.Left.Schema()
+	if err != nil {
+		return datasource.Schema{}, err
+	}
+	right, err := j.Right.Schema()
+	if err != nil {
+		return datasource.Schema{}, err
+	}
+	fields := make([]datasource.Field, 0, len(left.Fields)+len(right.Fields))
+	fields = append(fields, left.Fields...)
+	fields = append(fields, right.Fields...)
+	return datasource.Schema{Fields: fields}, nil
+}
 
 // Projection evaluates expressions against its input.
 type Projection struct {
@@ -89,22 +132,36 @@ func (a Aggregate) Schema() (datasource.Schema, error) {
 
 // Column references a column by name.
 type Column struct {
-	Name string
+	Qualifier string
+	Name      string
 }
 
-func (c Column) String() string { return c.Name }
+func (c Column) String() string {
+	if c.Qualifier != "" {
+		return c.Qualifier + "." + c.Name
+	}
+	return c.Name
+}
 
 func (c Column) ToField(input LogicalPlan) (datasource.Field, error) {
 	schema, err := input.Schema()
 	if err != nil {
 		return datasource.Field{}, err
 	}
-	for _, field := range schema.Fields {
-		if field.Name == c.Name {
-			return field, nil
+	var match *datasource.Field
+	for i := range schema.Fields {
+		field := &schema.Fields[i]
+		if field.Name == c.Name && (c.Qualifier == "" || field.Qualifier == c.Qualifier) {
+			if match != nil {
+				return datasource.Field{}, fmt.Errorf("ambiguous column %q", c.String())
+			}
+			match = field
 		}
 	}
-	return datasource.Field{}, fmt.Errorf("no column named %q", c.Name)
+	if match == nil {
+		return datasource.Field{}, fmt.Errorf("no column named %q", c.String())
+	}
+	return *match, nil
 }
 
 // ColumnIndex references a column by its position in the input plan.
@@ -166,14 +223,17 @@ func BuildLogicalPlan(stmt parser.SqlStatement, tables map[string]datasource.Dat
 }
 
 func buildSelect(query parser.SqlSelect, tables map[string]datasource.DataSource) (LogicalPlan, error) {
+	scan, err := buildScan(query.TableName.ID, tables)
+	if err != nil {
+		return nil, err
+	}
+	var input LogicalPlan = scan
 	if query.Join != nil {
-		return nil, fmt.Errorf("JOIN is not yet supported by the logical planner")
+		input, err = buildJoin(scan, *query.Join, tables)
+		if err != nil {
+			return nil, err
+		}
 	}
-	source, ok := tables[query.TableName.ID]
-	if !ok || source == nil {
-		return nil, fmt.Errorf("no table named %q", query.TableName.ID)
-	}
-	scan := Scan{TableName: query.TableName.ID, Source: source}
 	groupExprs, err := buildGroupExpressions(query.GroupBy)
 	if err != nil {
 		return nil, err
@@ -187,9 +247,9 @@ func buildSelect(query parser.SqlSelect, tables map[string]datasource.DataSource
 	}
 	var plan Projection
 	if len(aggregates) == 0 {
-		plan, err = buildScanProjection(scan, query.Projection)
+		plan, err = buildNonAggregateProjection(input, query.Projection)
 	} else {
-		aggregate := Aggregate{Input: scan, GroupExpr: groupExprs, AggregateExpr: aggregates}
+		aggregate := Aggregate{Input: input, GroupExpr: groupExprs, AggregateExpr: aggregates}
 		plan, err = buildAggregateProjection(aggregate, query.Projection)
 	}
 	if err != nil {
@@ -201,6 +261,65 @@ func buildSelect(query parser.SqlSelect, tables map[string]datasource.DataSource
 	return plan, nil
 }
 
+func buildScan(name string, tables map[string]datasource.DataSource) (Scan, error) {
+	source, ok := tables[name]
+	if !ok || source == nil {
+		return Scan{}, fmt.Errorf("no table named %q", name)
+	}
+	return Scan{TableName: name, Source: source}, nil
+}
+
+func buildJoin(left Scan, clause parser.SqlJoin, tables map[string]datasource.DataSource) (LogicalPlan, error) {
+	if clause.Type != parser.LeftJoin {
+		return nil, fmt.Errorf("unsupported join type %q", clause.Type)
+	}
+	right, err := buildScan(clause.TableName.ID, tables)
+	if err != nil {
+		return nil, err
+	}
+	if left.TableName == right.TableName {
+		return nil, fmt.Errorf("joining a table to itself requires aliases, which are not supported")
+	}
+	firstSide, err := resolveJoinKey(clause.LeftKey, left, right)
+	if err != nil {
+		return nil, err
+	}
+	secondSide, err := resolveJoinKey(clause.RightKey, left, right)
+	if err != nil {
+		return nil, err
+	}
+	if firstSide == secondSide {
+		return nil, fmt.Errorf("join keys must reference opposite tables")
+	}
+	leftKey, rightKey := clause.LeftKey.ID, clause.RightKey.ID
+	if firstSide == right.TableName {
+		leftKey, rightKey = rightKey, leftKey
+	}
+	return Join{Left: left, Right: right, Type: LeftJoin, On: []JoinKey{{Left: leftKey, Right: rightKey}}}, nil
+}
+
+func resolveJoinKey(key parser.SqlIdentifier, left, right Scan) (string, error) {
+	var matching []string
+	for _, scan := range []Scan{left, right} {
+		if key.Qualifier != "" && key.Qualifier != scan.TableName {
+			continue
+		}
+		for _, field := range scan.Source.Schema().Fields {
+			if field.Name == key.ID {
+				matching = append(matching, scan.TableName)
+			}
+		}
+	}
+	column := Column{Qualifier: key.Qualifier, Name: key.ID}
+	if len(matching) == 0 {
+		return "", fmt.Errorf("no column named %q", column.String())
+	}
+	if len(matching) > 1 {
+		return "", fmt.Errorf("ambiguous column %q", column.String())
+	}
+	return matching[0], nil
+}
+
 func buildGroupExpressions(groupBy []parser.SqlExpr) ([]LogicalExpr, error) {
 	var groupExprs []LogicalExpr
 	for _, expr := range groupBy {
@@ -208,10 +327,7 @@ func buildGroupExpressions(groupBy []parser.SqlExpr) ([]LogicalExpr, error) {
 		if !ok {
 			return nil, fmt.Errorf("unsupported GROUP BY expression: %T", expr)
 		}
-		if identifier.Qualifier != "" {
-			return nil, fmt.Errorf("qualified columns are not yet supported by the logical planner")
-		}
-		groupExprs = append(groupExprs, Column{Name: identifier.ID})
+		groupExprs = append(groupExprs, Column{Qualifier: identifier.Qualifier, Name: identifier.ID})
 	}
 	return groupExprs, nil
 }
@@ -227,28 +343,22 @@ func buildAggregateExpressions(projection []parser.SqlExpr) ([]AggregateExpr, er
 			if !ok {
 				return nil, fmt.Errorf("unsupported AVG argument: %T", function.Args[0])
 			}
-			if arg.Qualifier != "" {
-				return nil, fmt.Errorf("qualified columns are not yet supported by the logical planner")
-			}
-			aggregates = append(aggregates, Avg{Expr: Column{Name: arg.ID}})
+			aggregates = append(aggregates, Avg{Expr: Column{Qualifier: arg.Qualifier, Name: arg.ID}})
 		}
 	}
 	return aggregates, nil
 }
 
-func buildScanProjection(scan Scan, projection []parser.SqlExpr) (Projection, error) {
+func buildNonAggregateProjection(input LogicalPlan, projection []parser.SqlExpr) (Projection, error) {
 	exprs := make([]LogicalExpr, 0, len(projection))
 	for _, expr := range projection {
 		column, ok := expr.(parser.SqlIdentifier)
 		if !ok {
 			return Projection{}, fmt.Errorf("unsupported SQL expression: %T", expr)
 		}
-		if column.Qualifier != "" {
-			return Projection{}, fmt.Errorf("qualified columns are not yet supported by the logical planner")
-		}
-		exprs = append(exprs, Column{Name: column.ID})
+		exprs = append(exprs, Column{Qualifier: column.Qualifier, Name: column.ID})
 	}
-	return Projection{Input: scan, Expr: exprs}, nil
+	return Projection{Input: input, Expr: exprs}, nil
 }
 
 func buildAggregateProjection(aggregate Aggregate, projection []parser.SqlExpr) (Projection, error) {
@@ -257,12 +367,9 @@ func buildAggregateProjection(aggregate Aggregate, projection []parser.SqlExpr) 
 	for _, expr := range projection {
 		switch e := expr.(type) {
 		case parser.SqlIdentifier:
-			if e.Qualifier != "" {
-				return Projection{}, fmt.Errorf("qualified columns are not yet supported by the logical planner")
-			}
 			index := -1
 			for i, groupExpr := range aggregate.GroupExpr {
-				if groupExpr.(Column).Name == e.ID {
+				if groupExpr.(Column) == (Column{Qualifier: e.Qualifier, Name: e.ID}) {
 					index = i
 					break
 				}
