@@ -87,3 +87,47 @@ func TestBuildLogicalPlanRejectsUnknownTableAndColumn(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildLogicalPlanForGroupedAverage(t *testing.T) {
+	query := parser.SqlSelect{
+		Projection: []parser.SqlExpr{
+			parser.SqlFunction{
+				ID: "AVG",
+				Args: []parser.SqlExpr{
+					parser.SqlIdentifier{ID: "price"},
+				},
+			},
+		},
+		TableName: parser.SqlIdentifier{ID: "inventory"},
+		GroupBy: []parser.SqlExpr{
+			parser.SqlIdentifier{ID: "category"},
+		},
+	}
+	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{
+		{Name: "category", Type: "string"},
+		{Name: "price", Type: "float"},
+	}}}
+
+	got, err := logicalplan.BuildLogicalPlan(query, map[string]datasource.DataSource{"inventory": source})
+	if err != nil {
+		t.Fatalf("BuildLogicalPlan() returned an error: %v", err)
+	}
+
+	want := logicalplan.Projection{
+		Input: logicalplan.Aggregate{
+			Input: logicalplan.Scan{TableName: "inventory", Source: source},
+			GroupExpr: []logicalplan.LogicalExpr{
+				logicalplan.Column{Name: "category"},
+			},
+			AggregateExpr: []logicalplan.AggregateExpr{
+				logicalplan.Avg{Expr: logicalplan.Column{Name: "price"}},
+			},
+		},
+		Expr: []logicalplan.LogicalExpr{
+			logicalplan.ColumnIndex{Index: 1},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("BuildLogicalPlan() = %#v; want %#v", got, want)
+	}
+}
