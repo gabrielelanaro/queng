@@ -24,6 +24,7 @@ type PhysicalExpr interface {
 // AggregateExpr describes an aggregate operation on an input expression.
 type AggregateExpr interface {
 	InputExpression() PhysicalExpr
+	NewAccumulator() Accumulator
 }
 
 // AvgExpr describes an average over an input expression.
@@ -32,6 +33,8 @@ type AvgExpr struct {
 }
 
 func (a AvgExpr) InputExpression() PhysicalExpr { return a.Expr }
+
+func (a AvgExpr) NewAccumulator() Accumulator { return &AvgAccumulator{} }
 
 // ScanExec represents a scan of a data source.
 type ScanExec struct {
@@ -85,13 +88,6 @@ type HashAggregateExec struct {
 }
 
 func (a HashAggregateExec) Children() []PhysicalPlan { return []PhysicalPlan{a.Input} }
-
-// Execute will be implemented when aggregation execution is added.
-func (a HashAggregateExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
-	return func(yield func(datasource.RecordBatch, error) bool) {
-		yield(datasource.RecordBatch{}, fmt.Errorf("aggregate execution is not implemented"))
-	}
-}
 
 // ColumnExpr refers to a column by its position in the input schema.
 type ColumnExpr struct {

@@ -52,3 +52,59 @@ func TestProjectionExecReturnsSelectedColumn(t *testing.T) {
 		t.Errorf("Execute() = %#v; want %#v", got, want)
 	}
 }
+
+type batchesSource struct {
+	schema  datasource.Schema
+	batches []datasource.RecordBatch
+}
+
+func (s batchesSource) Schema() datasource.Schema { return s.schema }
+
+func (s batchesSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
+	return func(yield func(datasource.RecordBatch, error) bool) {
+		for _, batch := range s.batches {
+			if !yield(batch, nil) {
+				return
+			}
+		}
+	}
+}
+
+func TestHashAggregateExecAveragesEachGroupAcrossBatches(t *testing.T) {
+	schema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "category", Type: "string"},
+		{Name: "price", Type: "float"},
+	}}
+	source := batchesSource{schema: schema, batches: []datasource.RecordBatch{
+		{Schema: schema, Columns: [][]any{{"fruit", "books"}, {4.0, 10.0}}},
+		{Schema: schema, Columns: [][]any{{"fruit", "books"}, {8.0, 20.0}}},
+	}}
+	plan := physicalplan.HashAggregateExec{
+		Input: physicalplan.ScanExec{Source: source},
+		Schema: datasource.Schema{Fields: []datasource.Field{
+			{Name: "category", Type: "string"},
+			{Name: "AVG", Type: "float"},
+		}},
+		GroupExpr: []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
+		AggregateExpr: []physicalplan.AggregateExpr{
+			physicalplan.AvgExpr{Expr: physicalplan.ColumnExpr{Index: 1}},
+		},
+	}
+
+	got := map[any]any{}
+	for batch, err := range plan.Execute() {
+		if err != nil {
+			t.Fatalf("Execute() returned an error: %v", err)
+		}
+		if !reflect.DeepEqual(batch.Schema, plan.Schema) {
+			t.Fatalf("batch schema = %#v; want %#v", batch.Schema, plan.Schema)
+		}
+		for i, category := range batch.Columns[0] {
+			got[category] = batch.Columns[1][i]
+		}
+	}
+	want := map[any]any{"fruit": 6.0, "books": 15.0}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("grouped averages = %#v; want %#v", got, want)
+	}
+}
