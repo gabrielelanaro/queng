@@ -24,3 +24,19 @@ func TestParseSelect(t *testing.T) {
 		t.Errorf("Parse() = %#v; want %#v", got, want)
 	}
 }
+
+func TestParseSelectWithGroupBy(t *testing.T) {
+	got, err := parser.Parse("SELECT category FROM inventory GROUP BY category")
+	if err != nil {
+		t.Fatalf("Parse() returned an error: %v", err)
+	}
+
+	want := parser.SqlSelect{
+		Projection: []parser.SqlExpr{parser.SqlIdentifier{ID: "category"}},
+		TableName:  parser.SqlIdentifier{ID: "inventory"},
+		GroupBy:    []parser.SqlExpr{parser.SqlIdentifier{ID: "category"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Parse() = %#v; want %#v", got, want)
+	}
+}

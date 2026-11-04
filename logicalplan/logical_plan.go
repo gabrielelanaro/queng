@@ -86,6 +86,9 @@ func BuildLogicalPlan(stmt parser.SqlStatement, tables map[string]datasource.Dat
 }
 
 func buildSelect(query parser.SqlSelect, tables map[string]datasource.DataSource) (LogicalPlan, error) {
+	if len(query.GroupBy) != 0 {
+		return nil, fmt.Errorf("GROUP BY is not yet supported by the logical planner")
+	}
 	source, ok := tables[query.TableName.ID]
 	if !ok || source == nil {
 		return nil, fmt.Errorf("no table named %q", query.TableName.ID)
