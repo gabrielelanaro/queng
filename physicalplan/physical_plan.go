@@ -3,6 +3,7 @@ package physicalplan
 
 import (
 	"fmt"
+	"iter"
 
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/logicalplan"
@@ -11,11 +12,13 @@ import (
 // PhysicalPlan is an operation in a physical query plan.
 type PhysicalPlan interface {
 	Children() []PhysicalPlan
+	Execute() iter.Seq2[datasource.RecordBatch, error]
 }
 
 // PhysicalExpr is an expression in a physical query plan.
 type PhysicalExpr interface {
 	String() string
+	Evaluate(batch datasource.RecordBatch) (datasource.Field, []any, error)
 }
 
 // ScanExec represents a scan of a data source.
@@ -25,6 +28,10 @@ type ScanExec struct {
 
 func (ScanExec) Children() []PhysicalPlan { return nil }
 
+func (s ScanExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
+	return s.Source.Scan()
+}
+
 // ProjectionExec represents a projection over an input plan.
 type ProjectionExec struct {
 	Input PhysicalPlan
@@ -33,12 +40,43 @@ type ProjectionExec struct {
 
 func (p ProjectionExec) Children() []PhysicalPlan { return []PhysicalPlan{p.Input} }
 
+func (p ProjectionExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
+	return func(yield func(datasource.RecordBatch, error) bool) {
+		for batch, err := range p.Input.Execute() {
+			if err != nil {
+				yield(datasource.RecordBatch{}, err)
+				return
+			}
+			result := datasource.RecordBatch{}
+			for _, expr := range p.Expr {
+				field, column, err := expr.Evaluate(batch)
+				if err != nil {
+					yield(datasource.RecordBatch{}, err)
+					return
+				}
+				result.Schema.Fields = append(result.Schema.Fields, field)
+				result.Columns = append(result.Columns, column)
+			}
+			if !yield(result, nil) {
+				return
+			}
+		}
+	}
+}
+
 // ColumnExpr refers to a column by its position in the input schema.
 type ColumnExpr struct {
 	Index int
 }
 
 func (c ColumnExpr) String() string { return fmt.Sprintf("column[%d]", c.Index) }
+
+func (c ColumnExpr) Evaluate(batch datasource.RecordBatch) (datasource.Field, []any, error) {
+	if c.Index < 0 || c.Index >= len(batch.Schema.Fields) || c.Index >= len(batch.Columns) {
+		return datasource.Field{}, nil, fmt.Errorf("column index %d out of range", c.Index)
+	}
+	return batch.Schema.Fields[c.Index], batch.Columns[c.Index], nil
+}
 
 // BuildPhysicalPlan converts a logical plan to a physical plan.
 func BuildPhysicalPlan(plan logicalplan.LogicalPlan) (PhysicalPlan, error) {

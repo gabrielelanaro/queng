@@ -1,6 +1,7 @@
 package physicalplan_test
 
 import (
+	"iter"
 	"reflect"
 	"testing"
 
@@ -12,6 +13,10 @@ import (
 type testSource struct{ schema datasource.Schema }
 
 func (s testSource) Schema() datasource.Schema { return s.schema }
+
+func (s testSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
+	return func(yield func(datasource.RecordBatch, error) bool) {}
+}
 
 func TestBuildPhysicalPlan(t *testing.T) {
 	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{

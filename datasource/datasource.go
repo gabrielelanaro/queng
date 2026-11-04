@@ -1,6 +1,8 @@
 // Package datasource defines the schema provided by a data source.
 package datasource
 
+import "iter"
+
 // Field describes one column of a data source or query result.
 type Field struct {
 	Name string
@@ -12,7 +14,14 @@ type Schema struct {
 	Fields []Field
 }
 
-// DataSource provides the schema of a table.
+// RecordBatch holds columns of values with their schema.
+type RecordBatch struct {
+	Schema  Schema
+	Columns [][]any
+}
+
+// DataSource provides the schema and batches of a table.
 type DataSource interface {
 	Schema() Schema
+	Scan() iter.Seq2[RecordBatch, error]
 }
