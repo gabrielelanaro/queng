@@ -166,6 +166,9 @@ func BuildLogicalPlan(stmt parser.SqlStatement, tables map[string]datasource.Dat
 }
 
 func buildSelect(query parser.SqlSelect, tables map[string]datasource.DataSource) (LogicalPlan, error) {
+	if query.Join != nil {
+		return nil, fmt.Errorf("JOIN is not yet supported by the logical planner")
+	}
 	source, ok := tables[query.TableName.ID]
 	if !ok || source == nil {
 		return nil, fmt.Errorf("no table named %q", query.TableName.ID)
@@ -205,6 +208,9 @@ func buildGroupExpressions(groupBy []parser.SqlExpr) ([]LogicalExpr, error) {
 		if !ok {
 			return nil, fmt.Errorf("unsupported GROUP BY expression: %T", expr)
 		}
+		if identifier.Qualifier != "" {
+			return nil, fmt.Errorf("qualified columns are not yet supported by the logical planner")
+		}
 		groupExprs = append(groupExprs, Column{Name: identifier.ID})
 	}
 	return groupExprs, nil
@@ -221,6 +227,9 @@ func buildAggregateExpressions(projection []parser.SqlExpr) ([]AggregateExpr, er
 			if !ok {
 				return nil, fmt.Errorf("unsupported AVG argument: %T", function.Args[0])
 			}
+			if arg.Qualifier != "" {
+				return nil, fmt.Errorf("qualified columns are not yet supported by the logical planner")
+			}
 			aggregates = append(aggregates, Avg{Expr: Column{Name: arg.ID}})
 		}
 	}
@@ -234,6 +243,9 @@ func buildScanProjection(scan Scan, projection []parser.SqlExpr) (Projection, er
 		if !ok {
 			return Projection{}, fmt.Errorf("unsupported SQL expression: %T", expr)
 		}
+		if column.Qualifier != "" {
+			return Projection{}, fmt.Errorf("qualified columns are not yet supported by the logical planner")
+		}
 		exprs = append(exprs, Column{Name: column.ID})
 	}
 	return Projection{Input: scan, Expr: exprs}, nil
@@ -245,6 +257,9 @@ func buildAggregateProjection(aggregate Aggregate, projection []parser.SqlExpr) 
 	for _, expr := range projection {
 		switch e := expr.(type) {
 		case parser.SqlIdentifier:
+			if e.Qualifier != "" {
+				return Projection{}, fmt.Errorf("qualified columns are not yet supported by the logical planner")
+			}
 			index := -1
 			for i, groupExpr := range aggregate.GroupExpr {
 				if groupExpr.(Column).Name == e.ID {
