@@ -18,7 +18,7 @@ type PhysicalPlan interface {
 // PhysicalExpr is an expression in a physical query plan.
 type PhysicalExpr interface {
 	String() string
-	Evaluate(batch datasource.RecordBatch) (datasource.Field, []any, error)
+	Evaluate(batch datasource.RecordBatch) ([]any, error)
 }
 
 // ScanExec represents a scan of a data source.
@@ -34,8 +34,9 @@ func (s ScanExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
 
 // ProjectionExec represents a projection over an input plan.
 type ProjectionExec struct {
-	Input PhysicalPlan
-	Expr  []PhysicalExpr
+	Input  PhysicalPlan
+	Schema datasource.Schema
+	Expr   []PhysicalExpr
 }
 
 func (p ProjectionExec) Children() []PhysicalPlan { return []PhysicalPlan{p.Input} }
@@ -47,14 +48,13 @@ func (p ProjectionExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
 				yield(datasource.RecordBatch{}, err)
 				return
 			}
-			result := datasource.RecordBatch{}
+			result := datasource.RecordBatch{Schema: p.Schema}
 			for _, expr := range p.Expr {
-				field, column, err := expr.Evaluate(batch)
+				column, err := expr.Evaluate(batch)
 				if err != nil {
 					yield(datasource.RecordBatch{}, err)
 					return
 				}
-				result.Schema.Fields = append(result.Schema.Fields, field)
 				result.Columns = append(result.Columns, column)
 			}
 			if !yield(result, nil) {
@@ -71,11 +71,11 @@ type ColumnExpr struct {
 
 func (c ColumnExpr) String() string { return fmt.Sprintf("column[%d]", c.Index) }
 
-func (c ColumnExpr) Evaluate(batch datasource.RecordBatch) (datasource.Field, []any, error) {
-	if c.Index < 0 || c.Index >= len(batch.Schema.Fields) || c.Index >= len(batch.Columns) {
-		return datasource.Field{}, nil, fmt.Errorf("column index %d out of range", c.Index)
+func (c ColumnExpr) Evaluate(batch datasource.RecordBatch) ([]any, error) {
+	if c.Index < 0 || c.Index >= len(batch.Columns) {
+		return nil, fmt.Errorf("column index %d out of range", c.Index)
 	}
-	return batch.Schema.Fields[c.Index], batch.Columns[c.Index], nil
+	return batch.Columns[c.Index], nil
 }
 
 // BuildPhysicalPlan converts a logical plan to a physical plan.
@@ -109,6 +109,10 @@ func buildProjection(p logicalplan.Projection) (PhysicalPlan, error) {
 	if err != nil {
 		return nil, err
 	}
+	outputSchema, err := p.Schema()
+	if err != nil {
+		return nil, err
+	}
 	exprs := make([]PhysicalExpr, 0, len(p.Expr))
 	for _, expr := range p.Expr {
 		physicalExpr, err := buildPhysicalExpr(expr, schema)
@@ -117,7 +121,7 @@ func buildProjection(p logicalplan.Projection) (PhysicalPlan, error) {
 		}
 		exprs = append(exprs, physicalExpr)
 	}
-	return ProjectionExec{Input: input, Expr: exprs}, nil
+	return ProjectionExec{Input: input, Schema: outputSchema, Expr: exprs}, nil
 }
 
 func buildPhysicalExpr(expr logicalplan.LogicalExpr, schema datasource.Schema) (PhysicalExpr, error) {

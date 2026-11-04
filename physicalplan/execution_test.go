@@ -30,7 +30,8 @@ func TestProjectionExecReturnsSelectedColumn(t *testing.T) {
 		Columns: [][]any{{2}, {9.5}},
 	}}
 	plan := physicalplan.ProjectionExec{
-		Input: physicalplan.ScanExec{Source: source},
+		Input:  physicalplan.ScanExec{Source: source},
+		Schema: datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: "float"}}},
 		Expr: []physicalplan.PhysicalExpr{
 			physicalplan.ColumnExpr{Index: 1},
 		},
