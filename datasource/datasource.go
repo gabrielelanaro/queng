@@ -21,10 +21,18 @@ type Schema struct {
 // RecordBatch holds columns of values with their schema.
 type RecordBatch struct {
 	Schema  Schema
-	Columns [][]any
+	Columns []ColumnVector
 }
 
-// DataSource provides the schema and batches of a table.
+// Release releases the column references owned by the batch.
+func (b RecordBatch) Release() {
+	for _, column := range b.Columns {
+		column.Release()
+	}
+}
+
+// DataSource provides the schema and batches of a table. Each batch yielded by
+// Scan transfers its column references to the consumer, which must release it.
 type DataSource interface {
 	Schema() Schema
 	Scan() iter.Seq2[RecordBatch, error]

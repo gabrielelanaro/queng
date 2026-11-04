@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/apache/arrow-go/v18/arrow"
+
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/parser"
 )
@@ -137,7 +139,15 @@ func (a Avg) ToField(input LogicalPlan) (datasource.Field, error) {
 	if err != nil {
 		return datasource.Field{}, err
 	}
-	return datasource.Field{Name: "AVG", Type: field.Type}, nil
+	if field.Type == nil {
+		return datasource.Field{}, fmt.Errorf("AVG input has no type")
+	}
+	switch field.Type.ID() {
+	case arrow.INT8, arrow.INT16, arrow.INT32, arrow.INT64, arrow.FLOAT32, arrow.FLOAT64:
+		return datasource.Field{Name: "AVG", Type: arrow.PrimitiveTypes.Float64}, nil
+	default:
+		return datasource.Field{}, fmt.Errorf("AVG does not support type %s", field.Type)
+	}
 }
 
 // BuildLogicalPlan translates a SQL statement into a logical plan.

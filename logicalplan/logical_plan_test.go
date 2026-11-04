@@ -133,3 +133,18 @@ func TestBuildLogicalPlanForGroupedAverage(t *testing.T) {
 		t.Errorf("BuildLogicalPlan() = %#v; want %#v", got, want)
 	}
 }
+
+func TestAverageOfIntegersHasFloatSchema(t *testing.T) {
+	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{
+		{Name: "quantity", Type: arrow.PrimitiveTypes.Int64},
+	}}}
+	field, err := (logicalplan.Avg{Expr: logicalplan.Column{Name: "quantity"}}).ToField(
+		logicalplan.Scan{TableName: "inventory", Source: source},
+	)
+	if err != nil {
+		t.Fatalf("ToField() returned an error: %v", err)
+	}
+	if !arrow.TypeEqual(field.Type, arrow.PrimitiveTypes.Float64) {
+		t.Errorf("average type = %v; want float64", field.Type)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
+	"strings"
 
 	"github.com/gabrielelanaro/queng/datasource"
 )
@@ -88,11 +89,14 @@ func (t *groupTable) newGroup(keys []any) *aggregateGroup {
 	return group
 }
 
-func (t *groupTable) findOrCreateGroup(columns [][]any, row int) (*aggregateGroup, error) {
+func (t *groupTable) findOrCreateGroup(columns []datasource.ColumnVector, row int) (*aggregateGroup, error) {
 	node := &t.root
 	keys := make([]any, len(columns))
 	for i, column := range columns {
-		value := column[row]
+		value := column.Value(row)
+		if text, ok := value.(string); ok {
+			value = strings.Clone(text)
+		}
 		keys[i] = value
 		if value != nil && !reflect.ValueOf(value).Comparable() {
 			return nil, fmt.Errorf("group value of type %T cannot be compared", value)
@@ -120,12 +124,15 @@ func (a HashAggregateExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
 				yield(datasource.RecordBatch{}, err)
 				return
 			}
-			if err := a.processBatch(batch, groups); err != nil {
+			err = a.processBatch(batch, groups)
+			batch.Release()
+			if err != nil {
 				yield(datasource.RecordBatch{}, err)
 				return
 			}
 		}
-		yield(a.buildResultBatch(groups), nil)
+		result, err := a.buildResultBatch(groups)
+		yield(result, err)
 	}
 }
 
@@ -144,13 +151,13 @@ func (a HashAggregateExec) processBatch(batch datasource.RecordBatch, groups *gr
 	}
 	rows := 0
 	if len(batch.Columns) > 0 {
-		rows = len(batch.Columns[0])
+		rows = batch.Columns[0].Len()
 	}
 	return processRows(rows, groupColumns, aggregateColumns, groups)
 }
 
-func evaluateExpressions(exprs []PhysicalExpr, batch datasource.RecordBatch) ([][]any, error) {
-	columns := make([][]any, 0, len(exprs))
+func evaluateExpressions(exprs []PhysicalExpr, batch datasource.RecordBatch) ([]datasource.ColumnVector, error) {
+	columns := make([]datasource.ColumnVector, 0, len(exprs))
 	for _, expr := range exprs {
 		column, err := expr.Evaluate(batch)
 		if err != nil {
@@ -161,7 +168,7 @@ func evaluateExpressions(exprs []PhysicalExpr, batch datasource.RecordBatch) ([]
 	return columns, nil
 }
 
-func processRows(rows int, groupColumns, aggregateColumns [][]any, groups *groupTable) error {
+func processRows(rows int, groupColumns, aggregateColumns []datasource.ColumnVector, groups *groupTable) error {
 	for row := 0; row < rows; row++ {
 		group, err := groups.findOrCreateGroup(groupColumns, row)
 		if err != nil {
@@ -174,25 +181,34 @@ func processRows(rows int, groupColumns, aggregateColumns [][]any, groups *group
 	return nil
 }
 
-func accumulateRow(group *aggregateGroup, columns [][]any, row int) error {
+func accumulateRow(group *aggregateGroup, columns []datasource.ColumnVector, row int) error {
 	for i, accumulator := range group.accumulators {
-		if err := accumulator.Accumulate(columns[i][row]); err != nil {
+		if err := accumulator.Accumulate(columns[i].Value(row)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (a HashAggregateExec) buildResultBatch(groups *groupTable) datasource.RecordBatch {
-	result := datasource.RecordBatch{Schema: a.Schema, Columns: make([][]any, len(a.GroupExpr)+len(a.AggregateExpr))}
+func (a HashAggregateExec) buildResultBatch(groups *groupTable) (datasource.RecordBatch, error) {
+	values := make([][]any, len(a.GroupExpr)+len(a.AggregateExpr))
 	for _, group := range groups.groups {
 		for i, key := range group.keys {
-			result.Columns[i] = append(result.Columns[i], key)
+			values[i] = append(values[i], key)
 		}
 		for i, accumulator := range group.accumulators {
 			index := len(a.GroupExpr) + i
-			result.Columns[index] = append(result.Columns[index], accumulator.FinalValue())
+			values[index] = append(values[index], accumulator.FinalValue())
 		}
 	}
-	return result
+	result := datasource.RecordBatch{Schema: a.Schema}
+	for i, columnValues := range values {
+		column, err := datasource.NewArrowColumn(a.Schema.Fields[i].Type, columnValues)
+		if err != nil {
+			result.Release()
+			return datasource.RecordBatch{}, err
+		}
+		result.Columns = append(result.Columns, column)
+	}
+	return result, nil
 }

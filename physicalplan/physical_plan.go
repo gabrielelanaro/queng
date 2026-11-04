@@ -15,10 +15,11 @@ type PhysicalPlan interface {
 	Execute() iter.Seq2[datasource.RecordBatch, error]
 }
 
-// PhysicalExpr is an expression in a physical query plan.
+// PhysicalExpr is an expression in a physical query plan. Evaluate returns a
+// borrowed column valid for as long as the input batch remains alive.
 type PhysicalExpr interface {
 	String() string
-	Evaluate(batch datasource.RecordBatch) ([]any, error)
+	Evaluate(batch datasource.RecordBatch) (datasource.ColumnVector, error)
 }
 
 // AggregateExpr describes an aggregate operation on an input expression.
@@ -67,11 +68,15 @@ func (p ProjectionExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
 			for _, expr := range p.Expr {
 				column, err := expr.Evaluate(batch)
 				if err != nil {
+					result.Release()
+					batch.Release()
 					yield(datasource.RecordBatch{}, err)
 					return
 				}
+				column.Retain()
 				result.Columns = append(result.Columns, column)
 			}
+			batch.Release()
 			if !yield(result, nil) {
 				return
 			}
@@ -96,7 +101,7 @@ type ColumnExpr struct {
 
 func (c ColumnExpr) String() string { return fmt.Sprintf("column[%d]", c.Index) }
 
-func (c ColumnExpr) Evaluate(batch datasource.RecordBatch) ([]any, error) {
+func (c ColumnExpr) Evaluate(batch datasource.RecordBatch) (datasource.ColumnVector, error) {
 	if c.Index < 0 || c.Index >= len(batch.Columns) {
 		return nil, fmt.Errorf("column index %d out of range", c.Index)
 	}
