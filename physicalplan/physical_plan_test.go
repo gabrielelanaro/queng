@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/apache/arrow-go/v18/arrow"
+
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/logicalplan"
 	"github.com/gabrielelanaro/queng/physicalplan"
@@ -20,9 +22,9 @@ func (s testSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
 
 func TestBuildPhysicalPlan(t *testing.T) {
 	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{
-		{Name: "quantity", Type: "integer"},
-		{Name: "price", Type: "float"},
-		{Name: "name", Type: "string"},
+		{Name: "quantity", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "price", Type: arrow.PrimitiveTypes.Float64},
+		{Name: "name", Type: arrow.BinaryTypes.String},
 	}}}
 	logical := logicalplan.Projection{
 		Input: logicalplan.Scan{TableName: "inventory", Source: source},
@@ -37,7 +39,7 @@ func TestBuildPhysicalPlan(t *testing.T) {
 
 	want := physicalplan.ProjectionExec{
 		Input:  physicalplan.ScanExec{Source: source},
-		Schema: datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: "float"}}},
+		Schema: datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}},
 		Expr: []physicalplan.PhysicalExpr{
 			physicalplan.ColumnExpr{Index: 1},
 		},
@@ -49,8 +51,8 @@ func TestBuildPhysicalPlan(t *testing.T) {
 
 func TestBuildPhysicalPlanForGroupedAverage(t *testing.T) {
 	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{
-		{Name: "category", Type: "string"},
-		{Name: "price", Type: "float"},
+		{Name: "category", Type: arrow.BinaryTypes.String},
+		{Name: "price", Type: arrow.PrimitiveTypes.Float64},
 	}}}
 	logical := logicalplan.Projection{
 		Input: logicalplan.Aggregate{
@@ -76,8 +78,8 @@ func TestBuildPhysicalPlanForGroupedAverage(t *testing.T) {
 		Input: physicalplan.HashAggregateExec{
 			Input: physicalplan.ScanExec{Source: source},
 			Schema: datasource.Schema{Fields: []datasource.Field{
-				{Name: "category", Type: "string"},
-				{Name: "AVG", Type: "float"},
+				{Name: "category", Type: arrow.BinaryTypes.String},
+				{Name: "AVG", Type: arrow.PrimitiveTypes.Float64},
 			}},
 			GroupExpr: []physicalplan.PhysicalExpr{
 				physicalplan.ColumnExpr{Index: 0},
@@ -86,7 +88,7 @@ func TestBuildPhysicalPlanForGroupedAverage(t *testing.T) {
 				physicalplan.AvgExpr{Expr: physicalplan.ColumnExpr{Index: 1}},
 			},
 		},
-		Schema: datasource.Schema{Fields: []datasource.Field{{Name: "AVG", Type: "float"}}},
+		Schema: datasource.Schema{Fields: []datasource.Field{{Name: "AVG", Type: arrow.PrimitiveTypes.Float64}}},
 		Expr: []physicalplan.PhysicalExpr{
 			physicalplan.ColumnExpr{Index: 1},
 		},

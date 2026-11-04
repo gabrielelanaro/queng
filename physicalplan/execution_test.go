@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/apache/arrow-go/v18/arrow"
+
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/physicalplan"
 )
@@ -24,14 +26,14 @@ func (s batchSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
 func TestProjectionExecReturnsSelectedColumn(t *testing.T) {
 	source := batchSource{batch: datasource.RecordBatch{
 		Schema: datasource.Schema{Fields: []datasource.Field{
-			{Name: "quantity", Type: "integer"},
-			{Name: "price", Type: "float"},
+			{Name: "quantity", Type: arrow.PrimitiveTypes.Int64},
+			{Name: "price", Type: arrow.PrimitiveTypes.Float64},
 		}},
 		Columns: [][]any{{2}, {9.5}},
 	}}
 	plan := physicalplan.ProjectionExec{
 		Input:  physicalplan.ScanExec{Source: source},
-		Schema: datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: "float"}}},
+		Schema: datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}},
 		Expr: []physicalplan.PhysicalExpr{
 			physicalplan.ColumnExpr{Index: 1},
 		},
@@ -45,7 +47,7 @@ func TestProjectionExecReturnsSelectedColumn(t *testing.T) {
 		got = append(got, batch)
 	}
 	want := []datasource.RecordBatch{{
-		Schema:  datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: "float"}}},
+		Schema:  datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}},
 		Columns: [][]any{{9.5}},
 	}}
 	if !reflect.DeepEqual(got, want) {
@@ -72,8 +74,8 @@ func (s batchesSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
 
 func TestHashAggregateExecAveragesEachGroupAcrossBatches(t *testing.T) {
 	schema := datasource.Schema{Fields: []datasource.Field{
-		{Name: "category", Type: "string"},
-		{Name: "price", Type: "float"},
+		{Name: "category", Type: arrow.BinaryTypes.String},
+		{Name: "price", Type: arrow.PrimitiveTypes.Float64},
 	}}
 	source := batchesSource{schema: schema, batches: []datasource.RecordBatch{
 		{Schema: schema, Columns: [][]any{{"fruit", "books"}, {4.0, 10.0}}},
@@ -82,8 +84,8 @@ func TestHashAggregateExecAveragesEachGroupAcrossBatches(t *testing.T) {
 	plan := physicalplan.HashAggregateExec{
 		Input: physicalplan.ScanExec{Source: source},
 		Schema: datasource.Schema{Fields: []datasource.Field{
-			{Name: "category", Type: "string"},
-			{Name: "AVG", Type: "float"},
+			{Name: "category", Type: arrow.BinaryTypes.String},
+			{Name: "AVG", Type: arrow.PrimitiveTypes.Float64},
 		}},
 		GroupExpr: []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
 		AggregateExpr: []physicalplan.AggregateExpr{

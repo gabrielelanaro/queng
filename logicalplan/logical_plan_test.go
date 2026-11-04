@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/apache/arrow-go/v18/arrow"
+
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/logicalplan"
 	"github.com/gabrielelanaro/queng/parser"
@@ -26,8 +28,8 @@ func TestBuildLogicalPlan(t *testing.T) {
 		TableName: parser.SqlIdentifier{ID: "inventory"},
 	}
 	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{
-		{Name: "quantity", Type: "integer"},
-		{Name: "price", Type: "float"},
+		{Name: "quantity", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "price", Type: arrow.PrimitiveTypes.Float64},
 	}}}
 
 	got, err := logicalplan.BuildLogicalPlan(query, map[string]datasource.DataSource{"inventory": source})
@@ -49,8 +51,8 @@ func TestBuildLogicalPlan(t *testing.T) {
 
 func TestProjectionSchemaReportsSelectedColumns(t *testing.T) {
 	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{
-		{Name: "quantity", Type: "integer"},
-		{Name: "price", Type: "float"},
+		{Name: "quantity", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "price", Type: arrow.PrimitiveTypes.Float64},
 	}}}
 	plan := logicalplan.Projection{
 		Input: logicalplan.Scan{TableName: "inventory", Source: source},
@@ -63,14 +65,14 @@ func TestProjectionSchemaReportsSelectedColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Schema() returned an error: %v", err)
 	}
-	wantSchema := datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: "float"}}}
+	wantSchema := datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}}
 	if !reflect.DeepEqual(schema, wantSchema) {
 		t.Errorf("Schema() = %#v; want %#v", schema, wantSchema)
 	}
 }
 
 func TestBuildLogicalPlanRejectsUnknownTableAndColumn(t *testing.T) {
-	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: "float"}}}}
+	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}}}
 	tables := map[string]datasource.DataSource{"inventory": source}
 	for _, tc := range []struct{ table, column string }{
 		{"missing", "price"},
@@ -104,8 +106,8 @@ func TestBuildLogicalPlanForGroupedAverage(t *testing.T) {
 		},
 	}
 	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{
-		{Name: "category", Type: "string"},
-		{Name: "price", Type: "float"},
+		{Name: "category", Type: arrow.BinaryTypes.String},
+		{Name: "price", Type: arrow.PrimitiveTypes.Float64},
 	}}}
 
 	got, err := logicalplan.BuildLogicalPlan(query, map[string]datasource.DataSource{"inventory": source})
