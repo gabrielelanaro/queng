@@ -4,25 +4,31 @@ package logicalplan
 import (
 	"fmt"
 
+	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/parser"
 )
 
 // LogicalPlan is an operation in a logical query plan.
 type LogicalPlan interface {
 	Children() []LogicalPlan
+	Schema() (datasource.Schema, error)
 }
 
 // LogicalExpr is an expression in a logical query plan.
 type LogicalExpr interface {
 	String() string
+	ToField(input LogicalPlan) (datasource.Field, error)
 }
 
 // Scan represents a table that supplies rows.
 type Scan struct {
 	TableName string
+	Source    datasource.DataSource
 }
 
 func (Scan) Children() []LogicalPlan { return nil }
+
+func (s Scan) Schema() (datasource.Schema, error) { return s.Source.Schema(), nil }
 
 // Projection evaluates expressions against its input.
 type Projection struct {
@@ -32,6 +38,18 @@ type Projection struct {
 
 func (p Projection) Children() []LogicalPlan { return []LogicalPlan{p.Input} }
 
+func (p Projection) Schema() (datasource.Schema, error) {
+	fields := make([]datasource.Field, 0, len(p.Expr))
+	for _, expr := range p.Expr {
+		field, err := expr.ToField(p.Input)
+		if err != nil {
+			return datasource.Schema{}, err
+		}
+		fields = append(fields, field)
+	}
+	return datasource.Schema{Fields: fields}, nil
+}
+
 // Column references a column by name.
 type Column struct {
 	Name string
@@ -39,22 +57,39 @@ type Column struct {
 
 func (c Column) String() string { return c.Name }
 
-// BuildLogicalPlan translates a SQL statement into an unresolved logical plan.
-func BuildLogicalPlan(stmt parser.SqlStatement) (LogicalPlan, error) {
+func (c Column) ToField(input LogicalPlan) (datasource.Field, error) {
+	schema, err := input.Schema()
+	if err != nil {
+		return datasource.Field{}, err
+	}
+	for _, field := range schema.Fields {
+		if field.Name == c.Name {
+			return field, nil
+		}
+	}
+	return datasource.Field{}, fmt.Errorf("no column named %q", c.Name)
+}
+
+// BuildLogicalPlan translates a SQL statement into a logical plan.
+func BuildLogicalPlan(stmt parser.SqlStatement, tables map[string]datasource.DataSource) (LogicalPlan, error) {
 	switch query := stmt.(type) {
 	case parser.SqlSelect:
-		return buildSelect(query)
+		return buildSelect(query, tables)
 	case *parser.SqlSelect:
 		if query == nil {
 			return nil, fmt.Errorf("nil SQL select statement")
 		}
-		return buildSelect(*query)
+		return buildSelect(*query, tables)
 	default:
 		return nil, fmt.Errorf("unsupported SQL statement: %T", stmt)
 	}
 }
 
-func buildSelect(query parser.SqlSelect) (LogicalPlan, error) {
+func buildSelect(query parser.SqlSelect, tables map[string]datasource.DataSource) (LogicalPlan, error) {
+	source, ok := tables[query.TableName.ID]
+	if !ok || source == nil {
+		return nil, fmt.Errorf("no table named %q", query.TableName.ID)
+	}
 	exprs := make([]LogicalExpr, 0, len(query.Projection))
 	for _, expr := range query.Projection {
 		switch e := expr.(type) {
@@ -64,8 +99,12 @@ func buildSelect(query parser.SqlSelect) (LogicalPlan, error) {
 			return nil, fmt.Errorf("unsupported SQL expression: %T", expr)
 		}
 	}
-	return Projection{
-		Input: Scan{TableName: query.TableName.ID},
+	plan := Projection{
+		Input: Scan{TableName: query.TableName.ID, Source: source},
 		Expr:  exprs,
-	}, nil
+	}
+	if _, err := plan.Schema(); err != nil {
+		return nil, err
+	}
+	return plan, nil
 }
