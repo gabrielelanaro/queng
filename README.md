@@ -12,13 +12,13 @@ go run ./cmd/queng "SELECT price FROM inventory" --table inventory=samples/inven
 
 The first CSV row supplies column names. Queng infers integer, floating-point, and string column types by reading the file; empty fields are treated as nulls. Results are displayed as a text table.
 
-The current SQL subset supports a single selected column or `AVG(column)`, with an optional single-column `GROUP BY` for aggregate queries:
+The current SQL subset supports selected columns and `AVG(column)`, with an optional single-column `GROUP BY` for aggregate queries:
 
 ```sh
 go run ./cmd/queng "SELECT AVG(price) FROM inventory GROUP BY category" --table inventory=samples/inventory.csv
 ```
 
-The table option can be repeated to register more files. Use `--batch-size 100` to change the maximum number of rows read per batch (the default is 1024). SQL support is still limited: multiple selected expressions, aliases, filters, and trailing semicolons are not yet supported.
+The table option can be repeated to register more files. Use `--batch-size 100` to change the maximum number of rows read per batch (the default is 1024). SQL support is still limited: aliases, filters, multiple grouping columns, and trailing semicolons are not yet supported.
 
 ```sh
 go test ./...

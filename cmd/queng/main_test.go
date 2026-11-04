@@ -19,6 +19,7 @@ func TestRunQueriesCSV(t *testing.T) {
 	}{
 		{"projection", "SELECT price FROM inventory", "+-------+\n| price |\n+-------+\n| 4     |\n| 10    |\n| 8     |\n| 20    |\n+-------+\n"},
 		{"grouped average", "SELECT AVG(price) FROM inventory GROUP BY category", "+-----+\n| AVG |\n+-----+\n| 6   |\n| 15  |\n+-----+\n"},
+		{"grouped average with category", "SELECT AVG(price), category FROM inventory GROUP BY category", "+-----+----------+\n| AVG | category |\n+-----+----------+\n| 6   | fruit    |\n| 15  | books    |\n+-----+----------+\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var output, errors bytes.Buffer
