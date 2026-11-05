@@ -201,9 +201,9 @@ func (a HashAggregateExec) buildResultBatch(groups *groupTable) (datasource.Reco
 			values[index] = append(values[index], accumulator.FinalValue())
 		}
 	}
-	result := datasource.RecordBatch{Schema: a.Schema}
+	result := datasource.RecordBatch{Schema: a.OutputSchema}
 	for i, columnValues := range values {
-		column, err := datasource.NewArrowColumn(a.Schema.Fields[i].Type, columnValues)
+		column, err := datasource.NewArrowColumn(a.OutputSchema.Fields[i].Type, columnValues)
 		if err != nil {
 			result.Release()
 			return datasource.RecordBatch{}, err

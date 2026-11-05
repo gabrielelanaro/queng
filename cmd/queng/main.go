@@ -78,10 +78,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	schema, err := logical.Schema()
-	if err != nil {
-		return err
-	}
+	schema := physical.Schema()
 	header := make([]string, len(schema.Fields))
 	for i, field := range schema.Fields {
 		header[i] = field.Name

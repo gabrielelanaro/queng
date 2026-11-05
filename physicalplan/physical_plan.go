@@ -11,6 +11,7 @@ import (
 
 // PhysicalPlan is an operation in a physical query plan.
 type PhysicalPlan interface {
+	Schema() datasource.Schema
 	Children() []PhysicalPlan
 	Execute() iter.Seq2[datasource.RecordBatch, error]
 }
@@ -39,21 +40,40 @@ func (a AvgExpr) NewAccumulator() Accumulator { return &AvgAccumulator{} }
 
 // ScanExec represents a scan of a data source.
 type ScanExec struct {
-	Source datasource.DataSource
+	Source       datasource.DataSource
+	OutputSchema datasource.Schema
+}
+
+func (s ScanExec) Schema() datasource.Schema {
+	if s.OutputSchema.Fields == nil {
+		return s.Source.Schema()
+	}
+	return s.OutputSchema
 }
 
 func (ScanExec) Children() []PhysicalPlan { return nil }
 
 func (s ScanExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
-	return s.Source.Scan()
+	return func(yield func(datasource.RecordBatch, error) bool) {
+		for batch, err := range s.Source.Scan() {
+			if err == nil {
+				batch.Schema = s.Schema()
+			}
+			if !yield(batch, err) {
+				return
+			}
+		}
+	}
 }
 
 // ProjectionExec represents a projection over an input plan.
 type ProjectionExec struct {
-	Input  PhysicalPlan
-	Schema datasource.Schema
-	Expr   []PhysicalExpr
+	Input        PhysicalPlan
+	OutputSchema datasource.Schema
+	Expr         []PhysicalExpr
 }
+
+func (p ProjectionExec) Schema() datasource.Schema { return p.OutputSchema }
 
 func (p ProjectionExec) Children() []PhysicalPlan { return []PhysicalPlan{p.Input} }
 
@@ -64,7 +84,7 @@ func (p ProjectionExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
 				yield(datasource.RecordBatch{}, err)
 				return
 			}
-			result := datasource.RecordBatch{Schema: p.Schema}
+			result := datasource.RecordBatch{Schema: p.OutputSchema}
 			for _, expr := range p.Expr {
 				column, err := expr.Evaluate(batch)
 				if err != nil {
@@ -87,22 +107,26 @@ func (p ProjectionExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
 // HashAggregateExec groups rows and computes aggregate expressions.
 type HashAggregateExec struct {
 	Input         PhysicalPlan
-	Schema        datasource.Schema
+	OutputSchema  datasource.Schema
 	GroupExpr     []PhysicalExpr
 	AggregateExpr []AggregateExpr
 }
+
+func (a HashAggregateExec) Schema() datasource.Schema { return a.OutputSchema }
 
 func (a HashAggregateExec) Children() []PhysicalPlan { return []PhysicalPlan{a.Input} }
 
 // HashJoinExec joins two inputs using a hash table.
 type HashJoinExec struct {
-	Left      PhysicalPlan
-	Right     PhysicalPlan
-	Type      logicalplan.JoinType
-	LeftKeys  []int
-	RightKeys []int
-	Schema    datasource.Schema
+	Left         PhysicalPlan
+	Right        PhysicalPlan
+	Type         logicalplan.JoinType
+	LeftKeys     []int
+	RightKeys    []int
+	OutputSchema datasource.Schema
 }
+
+func (j HashJoinExec) Schema() datasource.Schema { return j.OutputSchema }
 
 func (j HashJoinExec) Children() []PhysicalPlan { return []PhysicalPlan{j.Left, j.Right} }
 
@@ -124,7 +148,11 @@ func (c ColumnExpr) Evaluate(batch datasource.RecordBatch) (datasource.ColumnVec
 func BuildPhysicalPlan(plan logicalplan.LogicalPlan) (PhysicalPlan, error) {
 	switch p := plan.(type) {
 	case logicalplan.Scan:
-		return ScanExec{Source: p.Source}, nil
+		schema, err := p.Schema()
+		if err != nil {
+			return nil, err
+		}
+		return ScanExec{Source: p.Source, OutputSchema: schema}, nil
 	case *logicalplan.Scan:
 		if p == nil {
 			return nil, fmt.Errorf("nil logical scan")
@@ -168,14 +196,8 @@ func buildJoin(j logicalplan.Join) (PhysicalPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	leftSchema, err := j.Left.Schema()
-	if err != nil {
-		return nil, err
-	}
-	rightSchema, err := j.Right.Schema()
-	if err != nil {
-		return nil, err
-	}
+	leftSchema := left.Schema()
+	rightSchema := right.Schema()
 	schema, err := j.Schema()
 	if err != nil {
 		return nil, err
@@ -195,7 +217,7 @@ func buildJoin(j logicalplan.Join) (PhysicalPlan, error) {
 	}
 	return HashJoinExec{
 		Left: left, Right: right, Type: j.Type,
-		LeftKeys: leftKeys, RightKeys: rightKeys, Schema: schema,
+		LeftKeys: leftKeys, RightKeys: rightKeys, OutputSchema: schema,
 	}, nil
 }
 
@@ -220,10 +242,7 @@ func buildAggregate(a logicalplan.Aggregate) (PhysicalPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	inputSchema, err := a.Input.Schema()
-	if err != nil {
-		return nil, err
-	}
+	inputSchema := input.Schema()
 	outputSchema, err := a.Schema()
 	if err != nil {
 		return nil, err
@@ -250,7 +269,7 @@ func buildAggregate(a logicalplan.Aggregate) (PhysicalPlan, error) {
 		}
 	}
 	return HashAggregateExec{
-		Input: input, Schema: outputSchema, GroupExpr: groupExprs, AggregateExpr: aggregates,
+		Input: input, OutputSchema: outputSchema, GroupExpr: groupExprs, AggregateExpr: aggregates,
 	}, nil
 }
 
@@ -259,10 +278,7 @@ func buildProjection(p logicalplan.Projection) (PhysicalPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	schema, err := p.Input.Schema()
-	if err != nil {
-		return nil, err
-	}
+	schema := input.Schema()
 	outputSchema, err := p.Schema()
 	if err != nil {
 		return nil, err
@@ -275,7 +291,7 @@ func buildProjection(p logicalplan.Projection) (PhysicalPlan, error) {
 		}
 		exprs = append(exprs, physicalExpr)
 	}
-	return ProjectionExec{Input: input, Schema: outputSchema, Expr: exprs}, nil
+	return ProjectionExec{Input: input, OutputSchema: outputSchema, Expr: exprs}, nil
 }
 
 func buildPhysicalExpr(expr logicalplan.LogicalExpr, schema datasource.Schema) (PhysicalExpr, error) {

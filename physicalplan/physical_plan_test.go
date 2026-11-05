@@ -38,8 +38,12 @@ func TestBuildPhysicalPlan(t *testing.T) {
 	}
 
 	want := physicalplan.ProjectionExec{
-		Input:  physicalplan.ScanExec{Source: source},
-		Schema: datasource.Schema{Fields: []datasource.Field{{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Float64}}},
+		Input: physicalplan.ScanExec{Source: source, OutputSchema: datasource.Schema{Fields: []datasource.Field{
+			{Qualifier: "inventory", Name: "quantity", Type: arrow.PrimitiveTypes.Int64},
+			{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Float64},
+			{Qualifier: "inventory", Name: "name", Type: arrow.BinaryTypes.String},
+		}}},
+		OutputSchema: datasource.Schema{Fields: []datasource.Field{{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Float64}}},
 		Expr: []physicalplan.PhysicalExpr{
 			physicalplan.ColumnExpr{Index: 1},
 		},
@@ -76,8 +80,11 @@ func TestBuildPhysicalPlanForGroupedAverage(t *testing.T) {
 
 	want := physicalplan.ProjectionExec{
 		Input: physicalplan.HashAggregateExec{
-			Input: physicalplan.ScanExec{Source: source},
-			Schema: datasource.Schema{Fields: []datasource.Field{
+			Input: physicalplan.ScanExec{Source: source, OutputSchema: datasource.Schema{Fields: []datasource.Field{
+				{Qualifier: "inventory", Name: "category", Type: arrow.BinaryTypes.String},
+				{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Float64},
+			}}},
+			OutputSchema: datasource.Schema{Fields: []datasource.Field{
 				{Qualifier: "inventory", Name: "category", Type: arrow.BinaryTypes.String},
 				{Name: "AVG", Type: arrow.PrimitiveTypes.Float64},
 			}},
@@ -88,7 +95,7 @@ func TestBuildPhysicalPlanForGroupedAverage(t *testing.T) {
 				physicalplan.AvgExpr{Expr: physicalplan.ColumnExpr{Index: 1}},
 			},
 		},
-		Schema: datasource.Schema{Fields: []datasource.Field{{Name: "AVG", Type: arrow.PrimitiveTypes.Float64}}},
+		OutputSchema: datasource.Schema{Fields: []datasource.Field{{Name: "AVG", Type: arrow.PrimitiveTypes.Float64}}},
 		Expr: []physicalplan.PhysicalExpr{
 			physicalplan.ColumnExpr{Index: 1},
 		},
@@ -120,12 +127,18 @@ func TestBuildPhysicalPlanForLeftJoin(t *testing.T) {
 	}
 
 	want := physicalplan.HashJoinExec{
-		Left:      physicalplan.ScanExec{Source: sales},
-		Right:     physicalplan.ScanExec{Source: products},
+		Left: physicalplan.ScanExec{Source: sales, OutputSchema: datasource.Schema{Fields: []datasource.Field{
+			{Qualifier: "sales", Name: "sale", Type: arrow.PrimitiveTypes.Float64},
+			{Qualifier: "sales", Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
+		}}},
+		Right: physicalplan.ScanExec{Source: products, OutputSchema: datasource.Schema{Fields: []datasource.Field{
+			{Qualifier: "products", Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
+			{Qualifier: "products", Name: "product", Type: arrow.BinaryTypes.String},
+		}}},
 		Type:      logicalplan.LeftJoin,
 		LeftKeys:  []int{1},
 		RightKeys: []int{0},
-		Schema: datasource.Schema{Fields: []datasource.Field{
+		OutputSchema: datasource.Schema{Fields: []datasource.Field{
 			{Qualifier: "sales", Name: "sale", Type: arrow.PrimitiveTypes.Float64},
 			{Qualifier: "sales", Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
 			{Qualifier: "products", Name: "product_id", Type: arrow.PrimitiveTypes.Int64},

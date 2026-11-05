@@ -95,7 +95,7 @@ func copyJoinValue(value any) any {
 }
 
 func (j HashJoinExec) joinBatch(table map[any][][]any, batch datasource.RecordBatch) (datasource.RecordBatch, error) {
-	values := make([][]any, len(j.Schema.Fields))
+	values := make([][]any, len(j.OutputSchema.Fields))
 	if len(batch.Columns) > len(values) {
 		return datasource.RecordBatch{}, fmt.Errorf("join output schema has too few columns")
 	}
@@ -118,9 +118,9 @@ func (j HashJoinExec) joinBatch(table map[any][][]any, batch datasource.RecordBa
 			}
 		}
 	}
-	result := datasource.RecordBatch{Schema: j.Schema}
+	result := datasource.RecordBatch{Schema: j.OutputSchema}
 	for i, columnValues := range values {
-		column, err := datasource.NewArrowColumn(j.Schema.Fields[i].Type, columnValues)
+		column, err := datasource.NewArrowColumn(j.OutputSchema.Fields[i].Type, columnValues)
 		if err != nil {
 			result.Release()
 			return datasource.RecordBatch{}, err

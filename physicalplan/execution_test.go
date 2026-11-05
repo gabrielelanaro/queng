@@ -38,7 +38,7 @@ func TestProjectionKeepsColumnAliveUntilOutputIsReleased(t *testing.T) {
 	schema := datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}}
 	source := ownedBatchSource{batch: datasource.RecordBatch{Schema: schema, Columns: []datasource.ColumnVector{column}}}
 	plan := physicalplan.ProjectionExec{
-		Input: physicalplan.ScanExec{Source: source}, Schema: schema,
+		Input: physicalplan.ScanExec{Source: source}, OutputSchema: schema,
 		Expr: []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
 	}
 
@@ -85,6 +85,28 @@ func makeBatch(t *testing.T, schema datasource.Schema, values ...[]any) datasour
 	return batch
 }
 
+func TestScanExecReturnsQualifiedSchema(t *testing.T) {
+	sourceSchema := datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}}
+	outputSchema := datasource.Schema{Fields: []datasource.Field{{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Float64}}}
+	source := batchesSource{schema: sourceSchema, batches: []datasource.RecordBatch{
+		makeBatch(t, sourceSchema, []any{9.5}),
+	}}
+	plan := physicalplan.ScanExec{Source: source, OutputSchema: outputSchema}
+	if !reflect.DeepEqual(plan.Schema(), outputSchema) {
+		t.Fatalf("Schema() = %#v; want %#v", plan.Schema(), outputSchema)
+	}
+	for batch, err := range plan.Execute() {
+		if err != nil {
+			t.Fatalf("Execute() returned an error: %v", err)
+		}
+		if !reflect.DeepEqual(batch.Schema, plan.Schema()) {
+			batch.Release()
+			t.Fatalf("batch schema = %#v; want %#v", batch.Schema, plan.Schema())
+		}
+		batch.Release()
+	}
+}
+
 func TestProjectionExecReturnsSelectedColumn(t *testing.T) {
 	schema := datasource.Schema{Fields: []datasource.Field{
 		{Name: "quantity", Type: arrow.PrimitiveTypes.Int64},
@@ -93,8 +115,8 @@ func TestProjectionExecReturnsSelectedColumn(t *testing.T) {
 	batch := makeBatch(t, schema, []any{int64(2)}, []any{9.5})
 	source := batchesSource{schema: schema, batches: []datasource.RecordBatch{batch}}
 	plan := physicalplan.ProjectionExec{
-		Input:  physicalplan.ScanExec{Source: source},
-		Schema: datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}},
+		Input:        physicalplan.ScanExec{Source: source},
+		OutputSchema: datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}},
 		Expr: []physicalplan.PhysicalExpr{
 			physicalplan.ColumnExpr{Index: 1},
 		},
@@ -105,9 +127,9 @@ func TestProjectionExecReturnsSelectedColumn(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
-		if !reflect.DeepEqual(result.Schema, plan.Schema) {
+		if !reflect.DeepEqual(result.Schema, plan.Schema()) {
 			result.Release()
-			t.Fatalf("batch schema = %#v; want %#v", result.Schema, plan.Schema)
+			t.Fatalf("batch schema = %#v; want %#v", result.Schema, plan.Schema())
 		}
 		for i := 0; i < result.Columns[0].Len(); i++ {
 			values = append(values, result.Columns[0].Value(i))
@@ -130,7 +152,7 @@ func TestHashAggregateExecAveragesEachGroupAcrossBatches(t *testing.T) {
 	}}
 	plan := physicalplan.HashAggregateExec{
 		Input: physicalplan.ScanExec{Source: source},
-		Schema: datasource.Schema{Fields: []datasource.Field{
+		OutputSchema: datasource.Schema{Fields: []datasource.Field{
 			{Name: "category", Type: arrow.BinaryTypes.String},
 			{Name: "AVG", Type: arrow.PrimitiveTypes.Float64},
 		}},
@@ -145,9 +167,9 @@ func TestHashAggregateExecAveragesEachGroupAcrossBatches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
-		if !reflect.DeepEqual(batch.Schema, plan.Schema) {
+		if !reflect.DeepEqual(batch.Schema, plan.Schema()) {
 			batch.Release()
-			t.Fatalf("batch schema = %#v; want %#v", batch.Schema, plan.Schema)
+			t.Fatalf("batch schema = %#v; want %#v", batch.Schema, plan.Schema())
 		}
 		for i := 0; i < batch.Columns[0].Len(); i++ {
 			got[batch.Columns[0].Value(i)] = batch.Columns[1].Value(i)
@@ -180,7 +202,7 @@ func TestHashJoinExecMatchesAndPreservesUnmatchedLeftRows(t *testing.T) {
 	plan := physicalplan.HashJoinExec{
 		Left: physicalplan.ScanExec{Source: left}, Right: physicalplan.ScanExec{Source: right},
 		Type: logicalplan.LeftJoin, LeftKeys: []int{0}, RightKeys: []int{0},
-		Schema: datasource.Schema{Fields: append(leftSchema.Fields, rightSchema.Fields...)},
+		OutputSchema: datasource.Schema{Fields: append(leftSchema.Fields, rightSchema.Fields...)},
 	}
 
 	var rows [][]any
@@ -188,7 +210,7 @@ func TestHashJoinExecMatchesAndPreservesUnmatchedLeftRows(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
-		if !reflect.DeepEqual(batch.Schema, plan.Schema) {
+		if !reflect.DeepEqual(batch.Schema, plan.Schema()) {
 			batch.Release()
 			t.Fatal("output schema does not match join schema")
 		}
