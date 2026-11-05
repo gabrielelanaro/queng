@@ -97,3 +97,42 @@ func TestBuildPhysicalPlanForGroupedAverage(t *testing.T) {
 		t.Errorf("BuildPhysicalPlan() = %#v; want %#v", got, want)
 	}
 }
+
+func TestBuildPhysicalPlanForLeftJoin(t *testing.T) {
+	sales := testSource{schema: datasource.Schema{Fields: []datasource.Field{
+		{Name: "sale", Type: arrow.PrimitiveTypes.Float64},
+		{Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
+	}}}
+	products := testSource{schema: datasource.Schema{Fields: []datasource.Field{
+		{Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "product", Type: arrow.BinaryTypes.String},
+	}}}
+	logical := logicalplan.Join{
+		Left:  logicalplan.Scan{TableName: "sales", Source: sales},
+		Right: logicalplan.Scan{TableName: "products", Source: products},
+		Type:  logicalplan.LeftJoin,
+		On:    []logicalplan.JoinKey{{Left: "product_id", Right: "product_id"}},
+	}
+
+	got, err := physicalplan.BuildPhysicalPlan(logical)
+	if err != nil {
+		t.Fatalf("BuildPhysicalPlan() returned an error: %v", err)
+	}
+
+	want := physicalplan.HashJoinExec{
+		Left:      physicalplan.ScanExec{Source: sales},
+		Right:     physicalplan.ScanExec{Source: products},
+		Type:      logicalplan.LeftJoin,
+		LeftKeys:  []int{1},
+		RightKeys: []int{0},
+		Schema: datasource.Schema{Fields: []datasource.Field{
+			{Qualifier: "sales", Name: "sale", Type: arrow.PrimitiveTypes.Float64},
+			{Qualifier: "sales", Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
+			{Qualifier: "products", Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
+			{Qualifier: "products", Name: "product", Type: arrow.BinaryTypes.String},
+		}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("BuildPhysicalPlan() = %#v; want %#v", got, want)
+	}
+}

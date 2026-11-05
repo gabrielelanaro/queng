@@ -94,6 +94,24 @@ type HashAggregateExec struct {
 
 func (a HashAggregateExec) Children() []PhysicalPlan { return []PhysicalPlan{a.Input} }
 
+// HashJoinExec joins two inputs using a hash table.
+type HashJoinExec struct {
+	Left      PhysicalPlan
+	Right     PhysicalPlan
+	Type      logicalplan.JoinType
+	LeftKeys  []int
+	RightKeys []int
+	Schema    datasource.Schema
+}
+
+func (j HashJoinExec) Children() []PhysicalPlan { return []PhysicalPlan{j.Left, j.Right} }
+
+func (j HashJoinExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
+	return func(yield func(datasource.RecordBatch, error) bool) {
+		yield(datasource.RecordBatch{}, fmt.Errorf("hash join execution is not yet implemented"))
+	}
+}
+
 // ColumnExpr refers to a column by its position in the input schema.
 type ColumnExpr struct {
 	Index int
@@ -132,9 +150,75 @@ func BuildPhysicalPlan(plan logicalplan.LogicalPlan) (PhysicalPlan, error) {
 			return nil, fmt.Errorf("nil logical aggregate")
 		}
 		return buildAggregate(*p)
+	case logicalplan.Join:
+		return buildJoin(p)
+	case *logicalplan.Join:
+		if p == nil {
+			return nil, fmt.Errorf("nil logical join")
+		}
+		return buildJoin(*p)
 	default:
 		return nil, fmt.Errorf("unsupported logical plan: %T", plan)
 	}
+}
+
+func buildJoin(j logicalplan.Join) (PhysicalPlan, error) {
+	if j.Type != logicalplan.LeftJoin {
+		return nil, fmt.Errorf("unsupported join type: %v", j.Type)
+	}
+	left, err := BuildPhysicalPlan(j.Left)
+	if err != nil {
+		return nil, err
+	}
+	right, err := BuildPhysicalPlan(j.Right)
+	if err != nil {
+		return nil, err
+	}
+	leftSchema, err := j.Left.Schema()
+	if err != nil {
+		return nil, err
+	}
+	rightSchema, err := j.Right.Schema()
+	if err != nil {
+		return nil, err
+	}
+	schema, err := j.Schema()
+	if err != nil {
+		return nil, err
+	}
+	var leftKeys, rightKeys []int
+	for _, key := range j.On {
+		leftIndex, err := findJoinKey(key.Left, leftSchema)
+		if err != nil {
+			return nil, err
+		}
+		rightIndex, err := findJoinKey(key.Right, rightSchema)
+		if err != nil {
+			return nil, err
+		}
+		leftKeys = append(leftKeys, leftIndex)
+		rightKeys = append(rightKeys, rightIndex)
+	}
+	return HashJoinExec{
+		Left: left, Right: right, Type: j.Type,
+		LeftKeys: leftKeys, RightKeys: rightKeys, Schema: schema,
+	}, nil
+}
+
+func findJoinKey(name string, schema datasource.Schema) (int, error) {
+	index := -1
+	for i, field := range schema.Fields {
+		if field.Name == name {
+			if index >= 0 {
+				return 0, fmt.Errorf("ambiguous join column %q", name)
+			}
+			index = i
+		}
+	}
+	if index < 0 {
+		return 0, fmt.Errorf("no join column named %q", name)
+	}
+	return index, nil
 }
 
 func buildAggregate(a logicalplan.Aggregate) (PhysicalPlan, error) {
