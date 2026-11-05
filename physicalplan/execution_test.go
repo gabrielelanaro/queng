@@ -10,6 +10,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/memory"
 
 	"github.com/gabrielelanaro/queng/datasource"
+	"github.com/gabrielelanaro/queng/logicalplan"
 	"github.com/gabrielelanaro/queng/physicalplan"
 )
 
@@ -157,4 +158,69 @@ func TestHashAggregateExecAveragesEachGroupAcrossBatches(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("grouped averages = %#v; want %#v", got, want)
 	}
+}
+
+func TestHashJoinExecMatchesAndPreservesUnmatchedLeftRows(t *testing.T) {
+	leftSchema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "sale", Type: arrow.PrimitiveTypes.Float64},
+	}}
+	rightSchema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "product", Type: arrow.BinaryTypes.String},
+	}}
+	left := batchesSource{schema: leftSchema, batches: []datasource.RecordBatch{
+		makeBatch(t, leftSchema, []any{int64(1), int64(2)}, []any{10.0, 20.0}),
+		makeBatch(t, leftSchema, []any{nil}, []any{30.0}),
+	}}
+	right := batchesSource{schema: rightSchema, batches: []datasource.RecordBatch{
+		makeBatch(t, rightSchema, []any{int64(1), nil}, []any{"apple", "unknown"}),
+		makeBatch(t, rightSchema, []any{int64(1)}, []any{"pear"}),
+	}}
+	plan := physicalplan.HashJoinExec{
+		Left: physicalplan.ScanExec{Source: left}, Right: physicalplan.ScanExec{Source: right},
+		Type: logicalplan.LeftJoin, LeftKeys: []int{0}, RightKeys: []int{0},
+		Schema: datasource.Schema{Fields: append(leftSchema.Fields, rightSchema.Fields...)},
+	}
+
+	var rows [][]any
+	for batch, err := range plan.Execute() {
+		if err != nil {
+			t.Fatalf("Execute() returned an error: %v", err)
+		}
+		if !reflect.DeepEqual(batch.Schema, plan.Schema) {
+			batch.Release()
+			t.Fatal("output schema does not match join schema")
+		}
+		for i := 0; i < batch.Columns[0].Len(); i++ {
+			var row []any
+			for _, column := range batch.Columns {
+				row = append(row, column.Value(i))
+			}
+			rows = append(rows, row)
+		}
+		batch.Release()
+	}
+	want := [][]any{
+		{int64(1), 10.0, int64(1), "apple"},
+		{int64(1), 10.0, int64(1), "pear"},
+		{int64(2), 20.0, nil, nil},
+		{nil, 30.0, nil, nil},
+	}
+	if !reflect.DeepEqual(rows, want) {
+		t.Errorf("joined rows = %#v; want %#v", rows, want)
+	}
+}
+
+func TestHashJoinExecRejectsMultipleKeys(t *testing.T) {
+	plan := physicalplan.HashJoinExec{
+		Type: logicalplan.LeftJoin, LeftKeys: []int{0, 1}, RightKeys: []int{0, 1},
+	}
+	for _, err := range plan.Execute() {
+		if err == nil {
+			t.Fatal("Execute() succeeded with multiple join keys")
+		}
+		return
+	}
+	t.Fatal("Execute() did not report an error for multiple join keys")
 }

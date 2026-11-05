@@ -106,12 +106,6 @@ type HashJoinExec struct {
 
 func (j HashJoinExec) Children() []PhysicalPlan { return []PhysicalPlan{j.Left, j.Right} }
 
-func (j HashJoinExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
-	return func(yield func(datasource.RecordBatch, error) bool) {
-		yield(datasource.RecordBatch{}, fmt.Errorf("hash join execution is not yet implemented"))
-	}
-}
-
 // ColumnExpr refers to a column by its position in the input schema.
 type ColumnExpr struct {
 	Index int
