@@ -117,10 +117,10 @@ func (t *groupTable) findOrCreateGroup(columns []datasource.ColumnVector, row in
 }
 
 // Execute consumes the input and returns one row per group.
-func (a HashAggregateExec) Execute(ctx execution.Context) iter.Seq2[datasource.RecordBatch, error] {
+func (a HashAggregateExec) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		groups := newGroupTable(a.GroupExpr, a.AggregateExpr)
-		for batch, err := range a.Input.Execute(ctx) {
+		for batch, err := range a.Input.Execute(ctx, partitionID) {
 			if err != nil {
 				yield(datasource.RecordBatch{}, err)
 				return

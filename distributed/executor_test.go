@@ -17,7 +17,9 @@ type executorTestSource struct {
 
 func (s executorTestSource) Schema() datasource.Schema { return s.batch.Schema }
 
-func (s executorTestSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
+func (s executorTestSource) PartitionCount() int { return 1 }
+
+func (s executorTestSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		s.batch.Retain()
 		yield(s.batch, nil)
@@ -95,5 +97,45 @@ func TestLocalExecutorReportsExecutionError(t *testing.T) {
 			batch.Release()
 		}
 		t.Fatal("task succeeded with an invalid column index")
+	}
+}
+
+type partitionedSource struct{}
+
+func (partitionedSource) Schema() datasource.Schema {
+	return datasource.Schema{Fields: []datasource.Field{{Name: "id", Type: arrow.PrimitiveTypes.Int64}}}
+}
+
+func (partitionedSource) PartitionCount() int { return 2 }
+
+func (s partitionedSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+	return func(yield func(datasource.RecordBatch, error) bool) {
+		column, err := datasource.NewArrowColumn(arrow.PrimitiveTypes.Int64, []any{int64(partitionID)})
+		if err != nil {
+			yield(datasource.RecordBatch{}, err)
+			return
+		}
+		yield(datasource.NewRecordBatch(s.Schema(), []datasource.ColumnVector{column}), nil)
+	}
+}
+
+func TestLocalExecutorExecutesAssignedPartition(t *testing.T) {
+	source := partitionedSource{}
+	task := Task{
+		PartitionID: 1,
+		Stage: Stage{Plan: physicalplan.ProjectionExec{
+			Input: physicalplan.ScanExec{Source: source}, OutputSchema: source.Schema(),
+			Expr: []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
+		}},
+	}
+	result := <-(LocalExecutor{}).Submit(task)
+	if result.Err != nil {
+		t.Fatal(result.Err)
+	}
+	for _, batch := range result.Batches {
+		defer batch.Release()
+	}
+	if len(result.Batches) != 1 || result.Batches[0].Column(0).Value(0) != int64(1) {
+		t.Fatalf("unexpected result for partition 1: %#v", result.Batches)
 	}
 }

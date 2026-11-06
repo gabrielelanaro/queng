@@ -7,8 +7,9 @@ import (
 
 // Task identifies a stage to execute as part of a job.
 type Task struct {
-	JobID string
-	Stage Stage
+	JobID       string
+	Stage       Stage
+	PartitionID int
 }
 
 // TaskResult holds the result of a task. The receiver owns its batches and
@@ -33,7 +34,7 @@ func (e LocalExecutor) Submit(task Task) <-chan TaskResult {
 	go func() {
 		defer close(result)
 		var batches []datasource.RecordBatch
-		for batch, err := range task.Stage.Plan.Execute(execution.Context{JobID: task.JobID, Exchange: e.Exchange}) {
+		for batch, err := range task.Stage.Plan.Execute(execution.Context{JobID: task.JobID, Exchange: e.Exchange}, task.PartitionID) {
 			if err != nil {
 				for _, batch := range batches {
 					batch.Release()

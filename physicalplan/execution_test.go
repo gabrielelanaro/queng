@@ -24,7 +24,9 @@ type ownedBatchSource struct{ batch datasource.RecordBatch }
 
 func (s ownedBatchSource) Schema() datasource.Schema { return s.batch.Schema }
 
-func (s ownedBatchSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
+func (s ownedBatchSource) PartitionCount() int { return 1 }
+
+func (s ownedBatchSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		yield(s.batch, nil)
 	}
@@ -43,7 +45,7 @@ func TestProjectionKeepsColumnAliveUntilOutputIsReleased(t *testing.T) {
 		Expr: []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
 	}
 
-	for batch, err := range plan.Execute(execution.Context{}) {
+	for batch, err := range plan.Execute(execution.Context{}, 0) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
@@ -58,7 +60,9 @@ func TestProjectionKeepsColumnAliveUntilOutputIsReleased(t *testing.T) {
 func (s batchesSource) Schema() datasource.Schema { return s.schema }
 
 // Each yielded batch owns references that the consumer must release.
-func (s batchesSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
+func (s batchesSource) PartitionCount() int { return 1 }
+
+func (s batchesSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		for _, batch := range s.batches {
 			batch.Retain()
@@ -95,7 +99,7 @@ func TestScanExecReturnsQualifiedSchema(t *testing.T) {
 	if !reflect.DeepEqual(plan.Schema(), outputSchema) {
 		t.Fatalf("Schema() = %#v; want %#v", plan.Schema(), outputSchema)
 	}
-	for batch, err := range plan.Execute(execution.Context{}) {
+	for batch, err := range plan.Execute(execution.Context{}, 0) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
@@ -123,7 +127,7 @@ func TestProjectionExecReturnsSelectedColumn(t *testing.T) {
 	}
 
 	var values []any
-	for result, err := range plan.Execute(execution.Context{}) {
+	for result, err := range plan.Execute(execution.Context{}, 0) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
@@ -163,7 +167,7 @@ func TestHashAggregateExecAveragesEachGroupAcrossBatches(t *testing.T) {
 	}
 
 	got := map[any]any{}
-	for batch, err := range plan.Execute(execution.Context{}) {
+	for batch, err := range plan.Execute(execution.Context{}, 0) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
@@ -206,7 +210,7 @@ func TestHashJoinExecMatchesAndPreservesUnmatchedLeftRows(t *testing.T) {
 	}
 
 	var rows [][]any
-	for batch, err := range plan.Execute(execution.Context{}) {
+	for batch, err := range plan.Execute(execution.Context{}, 0) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
@@ -238,7 +242,7 @@ func TestHashJoinExecRejectsMultipleKeys(t *testing.T) {
 	plan := physicalplan.HashJoinExec{
 		Type: logicalplan.LeftJoin, LeftKeys: []int{0, 1}, RightKeys: []int{0, 1},
 	}
-	for _, err := range plan.Execute(execution.Context{}) {
+	for _, err := range plan.Execute(execution.Context{}, 0) {
 		if err == nil {
 			t.Fatal("Execute() succeeded with multiple join keys")
 		}

@@ -85,7 +85,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		header[i] = field.Name
 	}
 	var records [][]string
-	for batch, err := range physical.Execute(execution.Context{}) {
+	for batch, err := range physical.Execute(execution.Context{}, 0) {
 		if err != nil {
 			return err
 		}

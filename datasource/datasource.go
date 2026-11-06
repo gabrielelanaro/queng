@@ -54,5 +54,6 @@ func (b RecordBatch) Release() {
 // Scan transfers its column references to the consumer, which must release it.
 type DataSource interface {
 	Schema() Schema
-	Scan() iter.Seq2[RecordBatch, error]
+	PartitionCount() int
+	Scan(partitionID int) iter.Seq2[RecordBatch, error]
 }

@@ -14,7 +14,7 @@ import (
 type PhysicalPlan interface {
 	Schema() datasource.Schema
 	Children() []PhysicalPlan
-	Execute(ctx execution.Context) iter.Seq2[datasource.RecordBatch, error]
+	Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error]
 }
 
 // PhysicalExpr is an expression in a physical query plan. Evaluate returns a
@@ -54,9 +54,9 @@ func (s ScanExec) Schema() datasource.Schema {
 
 func (ScanExec) Children() []PhysicalPlan { return nil }
 
-func (s ScanExec) Execute(ctx execution.Context) iter.Seq2[datasource.RecordBatch, error] {
+func (s ScanExec) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
-		for batch, err := range s.Source.Scan() {
+		for batch, err := range s.Source.Scan(partitionID) {
 			if err == nil {
 				batch.Schema = s.Schema()
 			}
@@ -78,9 +78,9 @@ func (p ProjectionExec) Schema() datasource.Schema { return p.OutputSchema }
 
 func (p ProjectionExec) Children() []PhysicalPlan { return []PhysicalPlan{p.Input} }
 
-func (p ProjectionExec) Execute(ctx execution.Context) iter.Seq2[datasource.RecordBatch, error] {
+func (p ProjectionExec) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
-		for batch, err := range p.Input.Execute(ctx) {
+		for batch, err := range p.Input.Execute(ctx, partitionID) {
 			if err != nil {
 				yield(datasource.RecordBatch{}, err)
 				return

@@ -86,9 +86,16 @@ func inferCSVType(current arrow.DataType, value string) arrow.DataType {
 
 func (s *CSVSource) Schema() Schema { return s.schema }
 
+// PartitionCount returns one partition for the entire CSV file.
+func (s *CSVSource) PartitionCount() int { return 1 }
+
 // Scan reopens the file and yields batches owned by the consumer.
-func (s *CSVSource) Scan() iter.Seq2[RecordBatch, error] {
+func (s *CSVSource) Scan(partitionID int) iter.Seq2[RecordBatch, error] {
 	return func(yield func(RecordBatch, error) bool) {
+		if partitionID != 0 {
+			yield(RecordBatch{}, fmt.Errorf("CSV partition %d out of range", partitionID))
+			return
+		}
 		file, err := os.Open(s.path)
 		if err != nil {
 			yield(RecordBatch{}, err)
