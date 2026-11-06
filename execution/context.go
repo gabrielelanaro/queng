@@ -9,8 +9,10 @@ import (
 
 // Context holds the job and executor services for one task execution.
 type Context struct {
-	JobID    string
-	Exchange ExchangeStore
+	JobID             string
+	TaskID            int
+	ShufflePartitions int
+	Exchange          ExchangeStore
 }
 
 // ExchangeKey identifies one producer's output for a shuffle partition.
