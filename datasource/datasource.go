@@ -22,12 +22,30 @@ type Schema struct {
 // RecordBatch holds columns of values with their schema.
 type RecordBatch struct {
 	Schema  Schema
-	Columns []ColumnVector
+	columns []ColumnVector
+}
+
+// NewRecordBatch takes ownership of the column references and copies their slice.
+func NewRecordBatch(schema Schema, columns []ColumnVector) RecordBatch {
+	return RecordBatch{Schema: schema, columns: append([]ColumnVector(nil), columns...)}
+}
+
+// ColumnCount returns the number of columns in the batch.
+func (b RecordBatch) ColumnCount() int { return len(b.columns) }
+
+// Column returns a borrowed column, valid while the batch owns its reference.
+func (b RecordBatch) Column(index int) ColumnVector { return b.columns[index] }
+
+// Retain acquires a reference to each column in the batch.
+func (b RecordBatch) Retain() {
+	for _, column := range b.columns {
+		column.Retain()
+	}
 }
 
 // Release releases the column references owned by the batch.
 func (b RecordBatch) Release() {
-	for _, column := range b.Columns {
+	for _, column := range b.columns {
 		column.Release()
 	}
 }

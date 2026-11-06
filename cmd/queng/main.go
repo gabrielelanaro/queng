@@ -89,13 +89,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 		rows := 0
-		if len(batch.Columns) > 0 {
-			rows = batch.Columns[0].Len()
+		if batch.ColumnCount() > 0 {
+			rows = batch.Column(0).Len()
 		}
 		for row := 0; row < rows; row++ {
-			record := make([]string, len(batch.Columns))
-			for i, column := range batch.Columns {
-				value := column.Value(row)
+			record := make([]string, batch.ColumnCount())
+			for i := 0; i < batch.ColumnCount(); i++ {
+				value := batch.Column(i).Value(row)
 				if value == nil {
 					record[i] = "NULL"
 				} else {

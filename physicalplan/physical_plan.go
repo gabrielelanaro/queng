@@ -84,18 +84,19 @@ func (p ProjectionExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
 				yield(datasource.RecordBatch{}, err)
 				return
 			}
-			result := datasource.RecordBatch{Schema: p.OutputSchema}
+			var columns []datasource.ColumnVector
 			for _, expr := range p.Expr {
 				column, err := expr.Evaluate(batch)
 				if err != nil {
-					result.Release()
+					datasource.NewRecordBatch(p.OutputSchema, columns).Release()
 					batch.Release()
 					yield(datasource.RecordBatch{}, err)
 					return
 				}
 				column.Retain()
-				result.Columns = append(result.Columns, column)
+				columns = append(columns, column)
 			}
+			result := datasource.NewRecordBatch(p.OutputSchema, columns)
 			batch.Release()
 			if !yield(result, nil) {
 				return
@@ -138,10 +139,10 @@ type ColumnExpr struct {
 func (c ColumnExpr) String() string { return fmt.Sprintf("column[%d]", c.Index) }
 
 func (c ColumnExpr) Evaluate(batch datasource.RecordBatch) (datasource.ColumnVector, error) {
-	if c.Index < 0 || c.Index >= len(batch.Columns) {
+	if c.Index < 0 || c.Index >= batch.ColumnCount() {
 		return nil, fmt.Errorf("column index %d out of range", c.Index)
 	}
-	return batch.Columns[c.Index], nil
+	return batch.Column(c.Index), nil
 }
 
 // BuildPhysicalPlan converts a logical plan to a physical plan.

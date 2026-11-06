@@ -36,7 +36,7 @@ func TestProjectionKeepsColumnAliveUntilOutputIsReleased(t *testing.T) {
 	column := datasource.ArrowColumn{Array: builder.NewArray()}
 	builder.Release()
 	schema := datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}}
-	source := ownedBatchSource{batch: datasource.RecordBatch{Schema: schema, Columns: []datasource.ColumnVector{column}}}
+	source := ownedBatchSource{batch: datasource.NewRecordBatch(schema, []datasource.ColumnVector{column})}
 	plan := physicalplan.ProjectionExec{
 		Input: physicalplan.ScanExec{Source: source}, OutputSchema: schema,
 		Expr: []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
@@ -46,7 +46,7 @@ func TestProjectionKeepsColumnAliveUntilOutputIsReleased(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
-		if got := batch.Columns[0].Value(0); got != 9.5 {
+		if got := batch.Column(0).Value(0); got != 9.5 {
 			t.Errorf("projected value = %v; want 9.5", got)
 		}
 		batch.Release()
@@ -60,9 +60,7 @@ func (s batchesSource) Schema() datasource.Schema { return s.schema }
 func (s batchesSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		for _, batch := range s.batches {
-			for _, column := range batch.Columns {
-				column.Retain()
-			}
+			batch.Retain()
 			if !yield(batch, nil) {
 				return
 			}
@@ -72,15 +70,16 @@ func (s batchesSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
 
 func makeBatch(t *testing.T, schema datasource.Schema, values ...[]any) datasource.RecordBatch {
 	t.Helper()
-	batch := datasource.RecordBatch{Schema: schema}
+	var columns []datasource.ColumnVector
 	for i, values := range values {
 		column, err := datasource.NewArrowColumn(schema.Fields[i].Type, values)
 		if err != nil {
-			batch.Release()
+			datasource.NewRecordBatch(schema, columns).Release()
 			t.Fatalf("NewArrowColumn() returned an error: %v", err)
 		}
-		batch.Columns = append(batch.Columns, column)
+		columns = append(columns, column)
 	}
+	batch := datasource.NewRecordBatch(schema, columns)
 	t.Cleanup(batch.Release)
 	return batch
 }
@@ -131,8 +130,8 @@ func TestProjectionExecReturnsSelectedColumn(t *testing.T) {
 			result.Release()
 			t.Fatalf("batch schema = %#v; want %#v", result.Schema, plan.Schema())
 		}
-		for i := 0; i < result.Columns[0].Len(); i++ {
-			values = append(values, result.Columns[0].Value(i))
+		for i := 0; i < result.Column(0).Len(); i++ {
+			values = append(values, result.Column(0).Value(i))
 		}
 		result.Release()
 	}
@@ -171,8 +170,8 @@ func TestHashAggregateExecAveragesEachGroupAcrossBatches(t *testing.T) {
 			batch.Release()
 			t.Fatalf("batch schema = %#v; want %#v", batch.Schema, plan.Schema())
 		}
-		for i := 0; i < batch.Columns[0].Len(); i++ {
-			got[batch.Columns[0].Value(i)] = batch.Columns[1].Value(i)
+		for i := 0; i < batch.Column(0).Len(); i++ {
+			got[batch.Column(0).Value(i)] = batch.Column(1).Value(i)
 		}
 		batch.Release()
 	}
@@ -214,10 +213,10 @@ func TestHashJoinExecMatchesAndPreservesUnmatchedLeftRows(t *testing.T) {
 			batch.Release()
 			t.Fatal("output schema does not match join schema")
 		}
-		for i := 0; i < batch.Columns[0].Len(); i++ {
+		for i := 0; i < batch.Column(0).Len(); i++ {
 			var row []any
-			for _, column := range batch.Columns {
-				row = append(row, column.Value(i))
+			for index := 0; index < batch.ColumnCount(); index++ {
+				row = append(row, batch.Column(index).Value(i))
 			}
 			rows = append(rows, row)
 		}

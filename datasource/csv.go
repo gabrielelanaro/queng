@@ -131,16 +131,17 @@ func (s *CSVSource) Scan() iter.Seq2[RecordBatch, error] {
 				rowCount++
 			}
 			if rowCount == s.batchSize || (readErr == io.EOF && rowCount > 0) {
-				batch := RecordBatch{Schema: s.schema}
+				var columns []ColumnVector
 				for i, field := range s.schema.Fields {
 					column, err := NewArrowColumn(field.Type, values[i])
 					if err != nil {
-						batch.Release()
+						NewRecordBatch(s.schema, columns).Release()
 						yield(RecordBatch{}, err)
 						return
 					}
-					batch.Columns = append(batch.Columns, column)
+					columns = append(columns, column)
 				}
+				batch := NewRecordBatch(s.schema, columns)
 				if !yield(batch, nil) {
 					return
 				}

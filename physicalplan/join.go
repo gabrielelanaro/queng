@@ -11,10 +11,10 @@ import (
 )
 
 func joinKey(batch datasource.RecordBatch, row, index int) (any, error) {
-	if index < 0 || index >= len(batch.Columns) {
+	if index < 0 || index >= batch.ColumnCount() {
 		return nil, fmt.Errorf("join column index %d out of range", index)
 	}
-	value := batch.Columns[index].Value(row)
+	value := batch.Column(index).Value(row)
 	if value != nil && !reflect.ValueOf(value).Comparable() {
 		return nil, fmt.Errorf("join value of type %T cannot be compared", value)
 	}
@@ -66,18 +66,18 @@ func (j HashJoinExec) buildHashTable() (map[any][][]any, error) {
 }
 
 func addBatch(table map[any][][]any, batch datasource.RecordBatch, keyIndex int) error {
-	if len(batch.Columns) == 0 {
+	if batch.ColumnCount() == 0 {
 		return nil
 	}
-	for row := 0; row < batch.Columns[0].Len(); row++ {
+	for row := 0; row < batch.Column(0).Len(); row++ {
 		key, err := joinKey(batch, row, keyIndex)
 		if err != nil {
 			return err
 		}
 		if key != nil {
-			values := make([]any, len(batch.Columns))
-			for i, column := range batch.Columns {
-				values[i] = copyJoinValue(column.Value(row))
+			values := make([]any, batch.ColumnCount())
+			for i := 0; i < batch.ColumnCount(); i++ {
+				values[i] = copyJoinValue(batch.Column(i).Value(row))
 			}
 			key = copyJoinValue(key)
 			table[key] = append(table[key], values)
@@ -96,11 +96,11 @@ func copyJoinValue(value any) any {
 
 func (j HashJoinExec) joinBatch(table map[any][][]any, batch datasource.RecordBatch) (datasource.RecordBatch, error) {
 	values := make([][]any, len(j.OutputSchema.Fields))
-	if len(batch.Columns) > len(values) {
+	if batch.ColumnCount() > len(values) {
 		return datasource.RecordBatch{}, fmt.Errorf("join output schema has too few columns")
 	}
-	if len(batch.Columns) > 0 {
-		for row := 0; row < batch.Columns[0].Len(); row++ {
+	if batch.ColumnCount() > 0 {
+		for row := 0; row < batch.Column(0).Len(); row++ {
 			key, err := joinKey(batch, row, j.LeftKeys[0])
 			if err != nil {
 				return datasource.RecordBatch{}, err
@@ -110,7 +110,7 @@ func (j HashJoinExec) joinBatch(table map[any][][]any, batch datasource.RecordBa
 				appendJoinedRow(values, batch, row, nil)
 			} else {
 				for _, right := range matches {
-					if len(batch.Columns)+len(right) != len(values) {
+					if batch.ColumnCount()+len(right) != len(values) {
 						return datasource.RecordBatch{}, fmt.Errorf("join output schema does not match inputs")
 					}
 					appendJoinedRow(values, batch, row, right)
@@ -118,26 +118,26 @@ func (j HashJoinExec) joinBatch(table map[any][][]any, batch datasource.RecordBa
 			}
 		}
 	}
-	result := datasource.RecordBatch{Schema: j.OutputSchema}
+	var columns []datasource.ColumnVector
 	for i, columnValues := range values {
 		column, err := datasource.NewArrowColumn(j.OutputSchema.Fields[i].Type, columnValues)
 		if err != nil {
-			result.Release()
+			datasource.NewRecordBatch(j.OutputSchema, columns).Release()
 			return datasource.RecordBatch{}, err
 		}
-		result.Columns = append(result.Columns, column)
+		columns = append(columns, column)
 	}
-	return result, nil
+	return datasource.NewRecordBatch(j.OutputSchema, columns), nil
 }
 
 func appendJoinedRow(values [][]any, left datasource.RecordBatch, row int, right []any) {
-	for i, column := range left.Columns {
-		values[i] = append(values[i], column.Value(row))
+	for i := 0; i < left.ColumnCount(); i++ {
+		values[i] = append(values[i], left.Column(i).Value(row))
 	}
-	for i := len(left.Columns); i < len(values); i++ {
+	for i := left.ColumnCount(); i < len(values); i++ {
 		var value any
 		if right != nil {
-			value = right[i-len(left.Columns)]
+			value = right[i-left.ColumnCount()]
 		}
 		values[i] = append(values[i], value)
 	}

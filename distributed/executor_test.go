@@ -19,9 +19,7 @@ func (s executorTestSource) Schema() datasource.Schema { return s.batch.Schema }
 
 func (s executorTestSource) Scan() iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
-		for _, column := range s.batch.Columns {
-			column.Retain()
-		}
+		s.batch.Retain()
 		yield(s.batch, nil)
 	}
 }
@@ -42,9 +40,7 @@ func makeInventorySource(t *testing.T) executorTestSource {
 		t.Fatal(err)
 	}
 	t.Cleanup(price.Release)
-	return executorTestSource{batch: datasource.RecordBatch{
-		Schema: schema, Columns: []datasource.ColumnVector{quantity, price},
-	}}
+	return executorTestSource{batch: datasource.NewRecordBatch(schema, []datasource.ColumnVector{quantity, price})}
 }
 
 func TestLocalExecutorRunsStage(t *testing.T) {
@@ -78,8 +74,8 @@ func TestLocalExecutorRunsStage(t *testing.T) {
 		t.Fatalf("schema = %#v; want %#v", batch.Schema, outputSchema)
 	}
 	var values []any
-	for i := 0; i < batch.Columns[0].Len(); i++ {
-		values = append(values, batch.Columns[0].Value(i))
+	for i := 0; i < batch.Column(0).Len(); i++ {
+		values = append(values, batch.Column(0).Value(i))
 	}
 	if !reflect.DeepEqual(values, []any{9.5, 12.0}) {
 		t.Errorf("values = %#v; want [9.5 12]", values)

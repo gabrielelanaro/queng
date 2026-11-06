@@ -150,8 +150,8 @@ func (a HashAggregateExec) processBatch(batch datasource.RecordBatch, groups *gr
 		return err
 	}
 	rows := 0
-	if len(batch.Columns) > 0 {
-		rows = batch.Columns[0].Len()
+	if batch.ColumnCount() > 0 {
+		rows = batch.Column(0).Len()
 	}
 	return processRows(rows, groupColumns, aggregateColumns, groups)
 }
@@ -201,14 +201,14 @@ func (a HashAggregateExec) buildResultBatch(groups *groupTable) (datasource.Reco
 			values[index] = append(values[index], accumulator.FinalValue())
 		}
 	}
-	result := datasource.RecordBatch{Schema: a.OutputSchema}
+	var columns []datasource.ColumnVector
 	for i, columnValues := range values {
 		column, err := datasource.NewArrowColumn(a.OutputSchema.Fields[i].Type, columnValues)
 		if err != nil {
-			result.Release()
+			datasource.NewRecordBatch(a.OutputSchema, columns).Release()
 			return datasource.RecordBatch{}, err
 		}
-		result.Columns = append(result.Columns, column)
+		columns = append(columns, column)
 	}
-	return result, nil
+	return datasource.NewRecordBatch(a.OutputSchema, columns), nil
 }
