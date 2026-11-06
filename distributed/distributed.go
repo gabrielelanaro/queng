@@ -6,6 +6,7 @@ import (
 	"iter"
 
 	"github.com/gabrielelanaro/queng/datasource"
+	"github.com/gabrielelanaro/queng/execution"
 	"github.com/gabrielelanaro/queng/physicalplan"
 )
 
@@ -27,7 +28,7 @@ func (e ExchangeWrite) Children() []physicalplan.PhysicalPlan {
 	return []physicalplan.PhysicalPlan{e.Input}
 }
 
-func (e ExchangeWrite) Execute() iter.Seq2[datasource.RecordBatch, error] {
+func (e ExchangeWrite) Execute(ctx execution.Context) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		yield(datasource.RecordBatch{}, fmt.Errorf("exchange write execution is not yet implemented"))
 	}
@@ -43,7 +44,7 @@ func (e ExchangeRead) Schema() datasource.Schema { return e.OutputSchema }
 
 func (ExchangeRead) Children() []physicalplan.PhysicalPlan { return nil }
 
-func (e ExchangeRead) Execute() iter.Seq2[datasource.RecordBatch, error] {
+func (e ExchangeRead) Execute(ctx execution.Context) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		yield(datasource.RecordBatch{}, fmt.Errorf("exchange read execution is not yet implemented"))
 	}

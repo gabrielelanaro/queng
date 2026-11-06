@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gabrielelanaro/queng/datasource"
+	"github.com/gabrielelanaro/queng/execution"
 	"github.com/gabrielelanaro/queng/logicalplan"
 )
 
@@ -21,18 +22,18 @@ func joinKey(batch datasource.RecordBatch, row, index int) (any, error) {
 	return value, nil
 }
 
-func (j HashJoinExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
+func (j HashJoinExec) Execute(ctx execution.Context) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		if j.Type != logicalplan.LeftJoin || len(j.LeftKeys) != 1 || len(j.RightKeys) != 1 {
 			yield(datasource.RecordBatch{}, fmt.Errorf("hash join requires a left join with one key per input"))
 			return
 		}
-		table, err := j.buildHashTable()
+		table, err := j.buildHashTable(ctx)
 		if err != nil {
 			yield(datasource.RecordBatch{}, err)
 			return
 		}
-		for batch, err := range j.Left.Execute() {
+		for batch, err := range j.Left.Execute(ctx) {
 			if err != nil {
 				yield(datasource.RecordBatch{}, err)
 				return
@@ -50,9 +51,9 @@ func (j HashJoinExec) Execute() iter.Seq2[datasource.RecordBatch, error] {
 	}
 }
 
-func (j HashJoinExec) buildHashTable() (map[any][][]any, error) {
+func (j HashJoinExec) buildHashTable(ctx execution.Context) (map[any][][]any, error) {
 	table := make(map[any][][]any)
-	for batch, err := range j.Right.Execute() {
+	for batch, err := range j.Right.Execute(ctx) {
 		if err != nil {
 			return nil, err
 		}

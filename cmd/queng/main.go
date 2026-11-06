@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gabrielelanaro/queng/datasource"
+	"github.com/gabrielelanaro/queng/execution"
 	"github.com/gabrielelanaro/queng/logicalplan"
 	"github.com/gabrielelanaro/queng/parser"
 	"github.com/gabrielelanaro/queng/physicalplan"
@@ -84,7 +85,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		header[i] = field.Name
 	}
 	var records [][]string
-	for batch, err := range physical.Execute() {
+	for batch, err := range physical.Execute(execution.Context{}) {
 		if err != nil {
 			return err
 		}

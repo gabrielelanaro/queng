@@ -1,6 +1,9 @@
 package distributed
 
-import "github.com/gabrielelanaro/queng/datasource"
+import (
+	"github.com/gabrielelanaro/queng/datasource"
+	"github.com/gabrielelanaro/queng/execution"
+)
 
 // Task identifies a stage to execute as part of a job.
 type Task struct {
@@ -21,14 +24,16 @@ type Executor interface {
 }
 
 // LocalExecutor executes tasks in the current process.
-type LocalExecutor struct{}
+type LocalExecutor struct {
+	Exchange execution.ExchangeStore
+}
 
-func (LocalExecutor) Submit(task Task) <-chan TaskResult {
+func (e LocalExecutor) Submit(task Task) <-chan TaskResult {
 	result := make(chan TaskResult, 1)
 	go func() {
 		defer close(result)
 		var batches []datasource.RecordBatch
-		for batch, err := range task.Stage.Plan.Execute() {
+		for batch, err := range task.Stage.Plan.Execute(execution.Context{JobID: task.JobID, Exchange: e.Exchange}) {
 			if err != nil {
 				for _, batch := range batches {
 					batch.Release()
