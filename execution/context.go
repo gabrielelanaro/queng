@@ -32,6 +32,10 @@ type ExchangeStore interface {
 	// Read yields batches owned by the caller, who must release them.
 	Read(key ExchangeKey) iter.Seq2[datasource.RecordBatch, error]
 
+	// ReadPartition yields output from all producers for one stage partition.
+	// The caller owns the yielded batches and must release them.
+	ReadPartition(jobID string, stageID, partitionID int) iter.Seq2[datasource.RecordBatch, error]
+
 	// Close releases resources held by the store.
 	Close() error
 }

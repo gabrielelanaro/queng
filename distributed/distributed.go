@@ -131,9 +131,12 @@ func (e ExchangeRead) Schema() datasource.Schema { return e.OutputSchema }
 func (ExchangeRead) Children() []physicalplan.PhysicalPlan { return nil }
 
 func (e ExchangeRead) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
-	return func(yield func(datasource.RecordBatch, error) bool) {
-		yield(datasource.RecordBatch{}, fmt.Errorf("exchange read execution is not yet implemented"))
+	if ctx.Exchange == nil {
+		return func(yield func(datasource.RecordBatch, error) bool) {
+			yield(datasource.RecordBatch{}, fmt.Errorf("exchange store is not configured"))
+		}
 	}
+	return ctx.Exchange.ReadPartition(ctx.JobID, e.StageID, partitionID)
 }
 
 // BuildStages splits a physical plan at join inputs, in dependency order.

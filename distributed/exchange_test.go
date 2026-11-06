@@ -81,3 +81,38 @@ func TestExchangeWritePartitionsRowsByKey(t *testing.T) {
 		t.Errorf("rows were written to %d partitions; want 2", len(seenPartitions))
 	}
 }
+
+func TestExchangeReadCollectsPartitionFromAllProducers(t *testing.T) {
+	source := makeSalesSource(t)
+	store := NewMemoryExchange()
+	defer store.Close()
+	keys := []execution.ExchangeKey{
+		{JobID: "job-1", StageID: 1, TaskID: 10, PartitionID: 2},
+		{JobID: "job-1", StageID: 1, TaskID: 11, PartitionID: 2},
+		{JobID: "job-2", StageID: 1, TaskID: 10, PartitionID: 2},
+		{JobID: "job-1", StageID: 3, TaskID: 10, PartitionID: 2},
+		{JobID: "job-1", StageID: 1, TaskID: 10, PartitionID: 3},
+	}
+	for _, key := range keys {
+		if err := store.Write(key, source.batch); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	reader := ExchangeRead{StageID: 1, OutputSchema: source.Schema()}
+	var batches int
+	for batch, err := range reader.Execute(execution.Context{JobID: "job-1", Exchange: store}, 2) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(batch.Schema, source.Schema()) {
+			batch.Release()
+			t.Fatal("unexpected batch schema")
+		}
+		batches++
+		batch.Release()
+	}
+	if batches != 2 {
+		t.Errorf("read %d batches; want 2 from the matching producers", batches)
+	}
+}

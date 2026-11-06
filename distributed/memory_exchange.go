@@ -32,6 +32,16 @@ func (m *MemoryExchange) Write(key execution.ExchangeKey, batch datasource.Recor
 }
 
 func (m *MemoryExchange) Read(key execution.ExchangeKey) iter.Seq2[datasource.RecordBatch, error] {
+	return m.readMatching(func(k execution.ExchangeKey) bool { return k == key })
+}
+
+func (m *MemoryExchange) ReadPartition(jobID string, stageID, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+	return m.readMatching(func(k execution.ExchangeKey) bool {
+		return k.JobID == jobID && k.StageID == stageID && k.PartitionID == partitionID
+	})
+}
+
+func (m *MemoryExchange) readMatching(matches func(execution.ExchangeKey) bool) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		m.mu.Lock()
 		if m.closed {
@@ -39,10 +49,14 @@ func (m *MemoryExchange) Read(key execution.ExchangeKey) iter.Seq2[datasource.Re
 			yield(datasource.RecordBatch{}, fmt.Errorf("exchange is closed"))
 			return
 		}
-		batches := make([]datasource.RecordBatch, 0, len(m.batches[key]))
-		for _, batch := range m.batches[key] {
-			batch.Retain()
-			batches = append(batches, batch)
+		var batches []datasource.RecordBatch
+		for key, stored := range m.batches {
+			if matches(key) {
+				for _, batch := range stored {
+					batch.Retain()
+					batches = append(batches, batch)
+				}
+			}
 		}
 		m.mu.Unlock()
 
