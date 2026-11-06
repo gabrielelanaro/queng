@@ -6,37 +6,32 @@ import (
 	"sync"
 
 	"github.com/gabrielelanaro/queng/datasource"
+	"github.com/gabrielelanaro/queng/execution"
 )
-
-type exchangeKey struct {
-	jobID   string
-	stageID int
-}
 
 // MemoryExchange stores stage output in memory for local execution.
 type MemoryExchange struct {
 	mu      sync.Mutex
-	batches map[exchangeKey][]datasource.RecordBatch
+	batches map[execution.ExchangeKey][]datasource.RecordBatch
 	closed  bool
 }
 
 func NewMemoryExchange() *MemoryExchange {
-	return &MemoryExchange{batches: make(map[exchangeKey][]datasource.RecordBatch)}
+	return &MemoryExchange{batches: make(map[execution.ExchangeKey][]datasource.RecordBatch)}
 }
 
-func (m *MemoryExchange) Write(jobID string, stageID int, batch datasource.RecordBatch) error {
+func (m *MemoryExchange) Write(key execution.ExchangeKey, batch datasource.RecordBatch) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
 		return fmt.Errorf("exchange is closed")
 	}
 	batch.Retain()
-	key := exchangeKey{jobID: jobID, stageID: stageID}
 	m.batches[key] = append(m.batches[key], batch)
 	return nil
 }
 
-func (m *MemoryExchange) Read(jobID string, stageID int) iter.Seq2[datasource.RecordBatch, error] {
+func (m *MemoryExchange) Read(key execution.ExchangeKey) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		m.mu.Lock()
 		if m.closed {
@@ -44,7 +39,6 @@ func (m *MemoryExchange) Read(jobID string, stageID int) iter.Seq2[datasource.Re
 			yield(datasource.RecordBatch{}, fmt.Errorf("exchange is closed"))
 			return
 		}
-		key := exchangeKey{jobID: jobID, stageID: stageID}
 		batches := make([]datasource.RecordBatch, 0, len(m.batches[key]))
 		for _, batch := range m.batches[key] {
 			batch.Retain()

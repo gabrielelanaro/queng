@@ -9,6 +9,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/memory"
 
 	"github.com/gabrielelanaro/queng/datasource"
+	"github.com/gabrielelanaro/queng/execution"
 )
 
 func TestMemoryExchangeStoresBatchesByJobAndStage(t *testing.T) {
@@ -22,14 +23,15 @@ func TestMemoryExchangeStoresBatchesByJobAndStage(t *testing.T) {
 		[]datasource.ColumnVector{column},
 	)
 	store := NewMemoryExchange()
-	if err := store.Write("job-1", 0, batch); err != nil {
+	key := execution.ExchangeKey{JobID: "job-1", StageID: 0, TaskID: 1, PartitionID: 2}
+	if err := store.Write(key, batch); err != nil {
 		batch.Release()
 		t.Fatal(err)
 	}
 	batch.Release()
 
 	var values []any
-	for got, err := range store.Read("job-1", 0) {
+	for got, err := range store.Read(key) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -41,7 +43,8 @@ func TestMemoryExchangeStoresBatchesByJobAndStage(t *testing.T) {
 	if !reflect.DeepEqual(values, []any{int64(1), int64(2)}) {
 		t.Errorf("values = %#v; want [1 2]", values)
 	}
-	for got, err := range store.Read("job-2", 0) {
+	key.JobID = "job-2"
+	for got, err := range store.Read(key) {
 		if err != nil {
 			t.Fatal(err)
 		}
