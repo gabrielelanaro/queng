@@ -1,0 +1,28 @@
+syntax = "proto3";
+package queng.plan;
+option go_package = "github.com/gabrielelanaro/queng/planserde";
+
+message Plan {
+  oneof node {
+    Scan scan = 1;
+    Projection projection = 2;
+    HashJoin hash_join = 3;
+    HashAggregate hash_aggregate = 4;
+    ExchangeWrite exchange_write = 5;
+    ExchangeRead exchange_read = 6;
+  }
+}
+message Schema { repeated Field fields = 1; }
+message Field { string name = 1; string qualifier = 2; DataType type = 3; }
+enum DataType { DATA_TYPE_UNSPECIFIED = 0; INT64 = 1; FLOAT64 = 2; STRING = 3; BOOL = 4; }
+message CsvSource { string path = 1; int64 batch_size = 2; Schema schema = 3; }
+message Scan { CsvSource csv = 1; Schema output_schema = 2; }
+message Expression { oneof node { Column column = 1; } }
+message Column { int64 index = 1; }
+message Projection { Plan input = 1; Schema output_schema = 2; repeated Expression expressions = 3; }
+message HashJoin { Plan left = 1; Plan right = 2; Schema output_schema = 3; repeated int64 left_keys = 4; repeated int64 right_keys = 5; JoinType type = 6; }
+enum JoinType { JOIN_TYPE_UNSPECIFIED = 0; LEFT = 1; }
+message AggregateExpression { oneof node { Expression avg = 1; } }
+message HashAggregate { Plan input = 1; Schema output_schema = 2; repeated Expression group_expressions = 3; repeated AggregateExpression aggregate_expressions = 4; }
+message ExchangeWrite { Plan input = 1; int64 stage_id = 2; int64 key_index = 3; }
+message ExchangeRead { int64 stage_id = 1; Schema output_schema = 2; }

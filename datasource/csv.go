@@ -86,6 +86,11 @@ func inferCSVType(current arrow.DataType, value string) arrow.DataType {
 
 func (s *CSVSource) Schema() Schema { return s.schema }
 
+// Path and BatchSize describe how to reopen this source on another worker.
+func (s *CSVSource) Path() string { return s.path }
+
+func (s *CSVSource) BatchSize() int { return s.batchSize }
+
 // PartitionCount returns one partition for the entire CSV file.
 func (s *CSVSource) PartitionCount() int { return 1 }
 

@@ -2,7 +2,10 @@ module github.com/gabrielelanaro/queng
 
 go 1.27.0
 
-require github.com/apache/arrow-go/v18 v18.8.0
+require (
+	github.com/apache/arrow-go/v18 v18.8.0
+	google.golang.org/protobuf v1.36.12
+)
 
 require (
 	github.com/andybalholm/brotli v1.2.3 // indirect
