@@ -18,6 +18,7 @@ import (
 	"github.com/gabrielelanaro/queng/physicalplan"
 	"github.com/gabrielelanaro/queng/planserde"
 	"github.com/gabrielelanaro/queng/worker"
+	"github.com/gabrielelanaro/queng/workerapi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -42,11 +43,11 @@ func makeExchangePlan(t *testing.T) *planserde.Plan {
 	return plan
 }
 
-func startWorker(t *testing.T, store *distributed.MemoryExchange) worker.WorkerClient {
+func startWorker(t *testing.T, store *distributed.MemoryExchange) workerapi.WorkerClient {
 	t.Helper()
 	listener := bufconn.Listen(1024 * 1024)
 	server := grpc.NewServer()
-	worker.RegisterWorkerServer(server, &worker.Server{Exchange: store})
+	workerapi.RegisterWorkerServer(server, &worker.Server{Exchange: store})
 	go server.Serve(listener)
 	t.Cleanup(server.Stop)
 	conn, err := grpc.NewClient("passthrough:///worker", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -54,7 +55,7 @@ func startWorker(t *testing.T, store *distributed.MemoryExchange) worker.WorkerC
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { conn.Close() })
-	return worker.NewWorkerClient(conn)
+	return workerapi.NewWorkerClient(conn)
 }
 
 func TestRunTaskWritesExchangeOutput(t *testing.T) {
@@ -63,7 +64,7 @@ func TestRunTaskWritesExchangeOutput(t *testing.T) {
 	t.Cleanup(func() { store.Close() })
 	client := startWorker(t, store)
 
-	_, err := client.RunTask(context.Background(), &worker.TaskRequest{JobId: "job-1", TaskId: 7, PartitionId: 0, ShufflePartitions: 2, Plan: plan})
+	_, err := client.RunTask(context.Background(), &workerapi.TaskRequest{JobId: "job-1", TaskId: 7, PartitionId: 0, ShufflePartitions: 2, Plan: plan})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +86,7 @@ func TestRunTaskWritesExchangeOutput(t *testing.T) {
 		t.Errorf("ids = %v; want [1 2]", ids)
 	}
 
-	_, err = client.RunTask(context.Background(), &worker.TaskRequest{
+	_, err = client.RunTask(context.Background(), &workerapi.TaskRequest{
 		JobId: "job-1", TaskId: 8, PartitionId: 1, ShufflePartitions: 2, Plan: plan,
 	})
 	if status.Code(err) != codes.Internal {
@@ -112,7 +113,7 @@ func TestRunTaskReturnsProjectedBatches(t *testing.T) {
 	store := distributed.NewMemoryExchange()
 	t.Cleanup(func() { store.Close() })
 	client := startWorker(t, store)
-	result, err := client.RunTask(context.Background(), &worker.TaskRequest{
+	result, err := client.RunTask(context.Background(), &workerapi.TaskRequest{
 		JobId: "job-1", ShufflePartitions: 2, Plan: plan,
 	})
 	if err != nil {
@@ -144,7 +145,7 @@ func TestReadPartitionStreamsProducerBatches(t *testing.T) {
 	writeExchangeBatch(t, store, 7, 2)
 	writeExchangeBatch(t, store, 8, 3)
 
-	stream, err := client.ReadPartition(context.Background(), &worker.PartitionRequest{
+	stream, err := client.ReadPartition(context.Background(), &workerapi.PartitionRequest{
 		JobId: "job-1", StageId: 3, TaskId: 7, PartitionId: 0,
 	})
 	if err != nil {

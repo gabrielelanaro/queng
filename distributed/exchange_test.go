@@ -2,6 +2,7 @@ package distributed
 
 import (
 	"context"
+	"iter"
 	"reflect"
 	"testing"
 
@@ -12,7 +13,18 @@ import (
 	"github.com/gabrielelanaro/queng/physicalplan"
 )
 
-func makeSalesSource(t *testing.T) executorTestSource {
+type exchangeTestSource struct{ batch datasource.RecordBatch }
+
+func (s exchangeTestSource) Schema() datasource.Schema { return s.batch.Schema }
+func (s exchangeTestSource) PartitionCount() int       { return 1 }
+func (s exchangeTestSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+	return func(yield func(datasource.RecordBatch, error) bool) {
+		s.batch.Retain()
+		yield(s.batch, nil)
+	}
+}
+
+func makeSalesSource(t *testing.T) exchangeTestSource {
 	t.Helper()
 	schema := datasource.Schema{Fields: []datasource.Field{
 		{Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
@@ -28,7 +40,7 @@ func makeSalesSource(t *testing.T) executorTestSource {
 		t.Fatal(err)
 	}
 	t.Cleanup(sales.Release)
-	return executorTestSource{batch: datasource.NewRecordBatch(schema, []datasource.ColumnVector{keys, sales})}
+	return exchangeTestSource{batch: datasource.NewRecordBatch(schema, []datasource.ColumnVector{keys, sales})}
 }
 
 func TestExchangeWritePartitionsRowsByKey(t *testing.T) {

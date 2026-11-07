@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/gabrielelanaro/queng/workerapi"
 	"google.golang.org/grpc"
 )
 
@@ -22,7 +23,7 @@ func NewClients(options ...grpc.DialOption) *Clients {
 }
 
 // Get returns a client backed by the cached connection for address.
-func (c *Clients) Get(address string) (WorkerClient, error) {
+func (c *Clients) Get(address string) (workerapi.WorkerClient, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
@@ -37,7 +38,7 @@ func (c *Clients) Get(address string) (WorkerClient, error) {
 		}
 		c.connections[address] = conn
 	}
-	return NewWorkerClient(conn), nil
+	return workerapi.NewWorkerClient(conn), nil
 }
 
 // Close closes the cached connections.

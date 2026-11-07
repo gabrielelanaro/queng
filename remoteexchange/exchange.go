@@ -12,6 +12,7 @@ import (
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/execution"
 	"github.com/gabrielelanaro/queng/worker"
+	"github.com/gabrielelanaro/queng/workerapi"
 )
 
 // Exchange stores local output and fetches upstream output from workers.
@@ -58,7 +59,7 @@ func (e *Exchange) readProducer(ctx context.Context, location *coordinator.Produ
 		yield(datasource.RecordBatch{}, fmt.Errorf("connect to worker %q: %w", location.WorkerAddress, err))
 		return false
 	}
-	stream, err := client.ReadPartition(ctx, &worker.PartitionRequest{JobId: jobID, StageId: int64(stageID), TaskId: location.TaskId, PartitionId: int64(partitionID)})
+	stream, err := client.ReadPartition(ctx, &workerapi.PartitionRequest{JobId: jobID, StageId: int64(stageID), TaskId: location.TaskId, PartitionId: int64(partitionID)})
 	if err != nil {
 		yield(datasource.RecordBatch{}, fmt.Errorf("read partition from worker %q: %w", location.WorkerAddress, err))
 		return false

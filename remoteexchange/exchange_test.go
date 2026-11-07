@@ -18,6 +18,7 @@ import (
 	"github.com/gabrielelanaro/queng/planserde"
 	"github.com/gabrielelanaro/queng/remoteexchange"
 	"github.com/gabrielelanaro/queng/worker"
+	"github.com/gabrielelanaro/queng/workerapi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -58,7 +59,7 @@ func TestCancelTaskCancelsExchangeLookup(t *testing.T) {
 	t.Cleanup(func() { clients.Close() })
 	exchange := remoteexchange.New(distributed.NewMemoryExchange(), coordinator.NewCoordinatorClient(conn), clients)
 	t.Cleanup(func() { exchange.Close() })
-	workerListener := startServer(t, func(server *grpc.Server) { worker.RegisterWorkerServer(server, &worker.Server{Exchange: exchange}) })
+	workerListener := startServer(t, func(server *grpc.Server) { workerapi.RegisterWorkerServer(server, &worker.Server{Exchange: exchange}) })
 	workerConn, err := grpc.NewClient("passthrough:///worker", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return workerListener.Dial() }), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +73,7 @@ func TestCancelTaskCancelsExchangeLookup(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := worker.NewWorkerClient(workerConn).RunTask(ctx, &worker.TaskRequest{JobId: "job", ShufflePartitions: 1, Plan: plan})
+		_, err := workerapi.NewWorkerClient(workerConn).RunTask(ctx, &workerapi.TaskRequest{JobId: "job", ShufflePartitions: 1, Plan: plan})
 		done <- err
 	}()
 	select {
@@ -113,7 +114,7 @@ func TestReadPartitionFetchesFromAllProducerWorkers(t *testing.T) {
 		taskID := i + 7
 		writeBatch(t, local, taskID, int64(taskID))
 		tracker.Track("job", 3, coordinator.OutputLocation{TaskID: taskID, WorkerAddress: address})
-		listeners[address] = startServer(t, func(server *grpc.Server) { worker.RegisterWorkerServer(server, &worker.Server{Exchange: local}) })
+		listeners[address] = startServer(t, func(server *grpc.Server) { workerapi.RegisterWorkerServer(server, &worker.Server{Exchange: local}) })
 	}
 	coordinatorListener := startServer(t, func(server *grpc.Server) {
 		coordinator.RegisterCoordinatorServer(server, coordinator.NewServer(tracker))

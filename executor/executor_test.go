@@ -1,4 +1,4 @@
-package distributed
+package executor
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow"
 
 	"github.com/gabrielelanaro/queng/datasource"
+	"github.com/gabrielelanaro/queng/distributed"
 	"github.com/gabrielelanaro/queng/physicalplan"
 )
 
@@ -51,7 +52,7 @@ func TestLocalExecutorRunsStage(t *testing.T) {
 	outputSchema := datasource.Schema{Fields: []datasource.Field{{Name: "price", Type: arrow.PrimitiveTypes.Float64}}}
 	task := Task{
 		JobID: "job-1",
-		Stage: Stage{
+		Stage: distributed.Stage{
 			ID: 0,
 			Plan: physicalplan.ProjectionExec{
 				Input:        physicalplan.ScanExec{Source: source},
@@ -87,7 +88,7 @@ func TestLocalExecutorRunsStage(t *testing.T) {
 
 func TestLocalExecutorReportsExecutionError(t *testing.T) {
 	source := makeInventorySource(t)
-	task := Task{JobID: "job-1", Stage: Stage{Plan: physicalplan.ProjectionExec{
+	task := Task{JobID: "job-1", Stage: distributed.Stage{Plan: physicalplan.ProjectionExec{
 		Input: physicalplan.ScanExec{Source: source},
 		Expr:  []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 10}},
 	}}}
@@ -124,7 +125,7 @@ func TestLocalExecutorExecutesAssignedPartition(t *testing.T) {
 	source := partitionedSource{}
 	task := Task{
 		PartitionID: 1,
-		Stage: Stage{Plan: physicalplan.ProjectionExec{
+		Stage: distributed.Stage{Plan: physicalplan.ProjectionExec{
 			Input: physicalplan.ScanExec{Source: source}, OutputSchema: source.Schema(),
 			Expr: []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
 		}},

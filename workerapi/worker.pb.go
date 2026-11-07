@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        v3.19.1
-// source: worker/worker.proto
+// source: workerapi/worker.proto
 
-package worker
+package workerapi
 
 import (
 	planserde "github.com/gabrielelanaro/queng/planserde"
@@ -35,7 +35,7 @@ type TaskRequest struct {
 
 func (x *TaskRequest) Reset() {
 	*x = TaskRequest{}
-	mi := &file_worker_worker_proto_msgTypes[0]
+	mi := &file_workerapi_worker_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -47,7 +47,7 @@ func (x *TaskRequest) String() string {
 func (*TaskRequest) ProtoMessage() {}
 
 func (x *TaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_worker_worker_proto_msgTypes[0]
+	mi := &file_workerapi_worker_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60,7 +60,7 @@ func (x *TaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskRequest.ProtoReflect.Descriptor instead.
 func (*TaskRequest) Descriptor() ([]byte, []int) {
-	return file_worker_worker_proto_rawDescGZIP(), []int{0}
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *TaskRequest) GetJobId() string {
@@ -107,7 +107,7 @@ type TaskResult struct {
 
 func (x *TaskResult) Reset() {
 	*x = TaskResult{}
-	mi := &file_worker_worker_proto_msgTypes[1]
+	mi := &file_workerapi_worker_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -119,7 +119,7 @@ func (x *TaskResult) String() string {
 func (*TaskResult) ProtoMessage() {}
 
 func (x *TaskResult) ProtoReflect() protoreflect.Message {
-	mi := &file_worker_worker_proto_msgTypes[1]
+	mi := &file_workerapi_worker_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -132,7 +132,7 @@ func (x *TaskResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskResult.ProtoReflect.Descriptor instead.
 func (*TaskResult) Descriptor() ([]byte, []int) {
-	return file_worker_worker_proto_rawDescGZIP(), []int{1}
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *TaskResult) GetBatches() [][]byte {
@@ -154,7 +154,7 @@ type PartitionRequest struct {
 
 func (x *PartitionRequest) Reset() {
 	*x = PartitionRequest{}
-	mi := &file_worker_worker_proto_msgTypes[2]
+	mi := &file_workerapi_worker_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -166,7 +166,7 @@ func (x *PartitionRequest) String() string {
 func (*PartitionRequest) ProtoMessage() {}
 
 func (x *PartitionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_worker_worker_proto_msgTypes[2]
+	mi := &file_workerapi_worker_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -179,7 +179,7 @@ func (x *PartitionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartitionRequest.ProtoReflect.Descriptor instead.
 func (*PartitionRequest) Descriptor() ([]byte, []int) {
-	return file_worker_worker_proto_rawDescGZIP(), []int{2}
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *PartitionRequest) GetJobId() string {
@@ -219,7 +219,7 @@ type Batch struct {
 
 func (x *Batch) Reset() {
 	*x = Batch{}
-	mi := &file_worker_worker_proto_msgTypes[3]
+	mi := &file_workerapi_worker_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -231,7 +231,7 @@ func (x *Batch) String() string {
 func (*Batch) ProtoMessage() {}
 
 func (x *Batch) ProtoReflect() protoreflect.Message {
-	mi := &file_worker_worker_proto_msgTypes[3]
+	mi := &file_workerapi_worker_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -244,7 +244,7 @@ func (x *Batch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Batch.ProtoReflect.Descriptor instead.
 func (*Batch) Descriptor() ([]byte, []int) {
-	return file_worker_worker_proto_rawDescGZIP(), []int{3}
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Batch) GetData() []byte {
@@ -254,11 +254,11 @@ func (x *Batch) GetData() []byte {
 	return nil
 }
 
-var File_worker_worker_proto protoreflect.FileDescriptor
+var File_workerapi_worker_proto protoreflect.FileDescriptor
 
-const file_worker_worker_proto_rawDesc = "" +
+const file_workerapi_worker_proto_rawDesc = "" +
 	"\n" +
-	"\x13worker/worker.proto\x12\fqueng.worker\x1a\x14planserde/plan.proto\"\xb5\x01\n" +
+	"\x16workerapi/worker.proto\x12\fqueng.worker\x1a\x14planserde/plan.proto\"\xb5\x01\n" +
 	"\vTaskRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\x03R\x06taskId\x12!\n" +
@@ -277,29 +277,29 @@ const file_worker_worker_proto_rawDesc = "" +
 	"\x04data\x18\x01 \x01(\fR\x04data2\x90\x01\n" +
 	"\x06Worker\x12>\n" +
 	"\aRunTask\x12\x19.queng.worker.TaskRequest\x1a\x18.queng.worker.TaskResult\x12F\n" +
-	"\rReadPartition\x12\x1e.queng.worker.PartitionRequest\x1a\x13.queng.worker.Batch0\x01B(Z&github.com/gabrielelanaro/queng/workerb\x06proto3"
+	"\rReadPartition\x12\x1e.queng.worker.PartitionRequest\x1a\x13.queng.worker.Batch0\x01B+Z)github.com/gabrielelanaro/queng/workerapib\x06proto3"
 
 var (
-	file_worker_worker_proto_rawDescOnce sync.Once
-	file_worker_worker_proto_rawDescData []byte
+	file_workerapi_worker_proto_rawDescOnce sync.Once
+	file_workerapi_worker_proto_rawDescData []byte
 )
 
-func file_worker_worker_proto_rawDescGZIP() []byte {
-	file_worker_worker_proto_rawDescOnce.Do(func() {
-		file_worker_worker_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_worker_worker_proto_rawDesc), len(file_worker_worker_proto_rawDesc)))
+func file_workerapi_worker_proto_rawDescGZIP() []byte {
+	file_workerapi_worker_proto_rawDescOnce.Do(func() {
+		file_workerapi_worker_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_workerapi_worker_proto_rawDesc), len(file_workerapi_worker_proto_rawDesc)))
 	})
-	return file_worker_worker_proto_rawDescData
+	return file_workerapi_worker_proto_rawDescData
 }
 
-var file_worker_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_worker_worker_proto_goTypes = []any{
+var file_workerapi_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_workerapi_worker_proto_goTypes = []any{
 	(*TaskRequest)(nil),      // 0: queng.worker.TaskRequest
 	(*TaskResult)(nil),       // 1: queng.worker.TaskResult
 	(*PartitionRequest)(nil), // 2: queng.worker.PartitionRequest
 	(*Batch)(nil),            // 3: queng.worker.Batch
 	(*planserde.Plan)(nil),   // 4: queng.plan.Plan
 }
-var file_worker_worker_proto_depIdxs = []int32{
+var file_workerapi_worker_proto_depIdxs = []int32{
 	4, // 0: queng.worker.TaskRequest.plan:type_name -> queng.plan.Plan
 	0, // 1: queng.worker.Worker.RunTask:input_type -> queng.worker.TaskRequest
 	2, // 2: queng.worker.Worker.ReadPartition:input_type -> queng.worker.PartitionRequest
@@ -312,26 +312,26 @@ var file_worker_worker_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_worker_worker_proto_init() }
-func file_worker_worker_proto_init() {
-	if File_worker_worker_proto != nil {
+func init() { file_workerapi_worker_proto_init() }
+func file_workerapi_worker_proto_init() {
+	if File_workerapi_worker_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_worker_worker_proto_rawDesc), len(file_worker_worker_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_workerapi_worker_proto_rawDesc), len(file_workerapi_worker_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_worker_worker_proto_goTypes,
-		DependencyIndexes: file_worker_worker_proto_depIdxs,
-		MessageInfos:      file_worker_worker_proto_msgTypes,
+		GoTypes:           file_workerapi_worker_proto_goTypes,
+		DependencyIndexes: file_workerapi_worker_proto_depIdxs,
+		MessageInfos:      file_workerapi_worker_proto_msgTypes,
 	}.Build()
-	File_worker_worker_proto = out.File
-	file_worker_worker_proto_goTypes = nil
-	file_worker_worker_proto_depIdxs = nil
+	File_workerapi_worker_proto = out.File
+	file_workerapi_worker_proto_goTypes = nil
+	file_workerapi_worker_proto_depIdxs = nil
 }

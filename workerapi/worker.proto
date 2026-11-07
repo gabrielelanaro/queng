@@ -1,6 +1,6 @@
 syntax = "proto3";
 package queng.worker;
-option go_package = "github.com/gabrielelanaro/queng/worker";
+option go_package = "github.com/gabrielelanaro/queng/workerapi";
 
 import "planserde/plan.proto";
 

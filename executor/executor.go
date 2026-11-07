@@ -1,8 +1,10 @@
-package distributed
+// Package executor submits tasks for local or remote execution.
+package executor
 
 import (
 	"context"
 	"github.com/gabrielelanaro/queng/datasource"
+	"github.com/gabrielelanaro/queng/distributed"
 	"github.com/gabrielelanaro/queng/execution"
 )
 
@@ -10,7 +12,7 @@ import (
 type Task struct {
 	JobID       string
 	ID          int
-	Stage       Stage
+	Stage       distributed.Stage
 	PartitionID int
 }
 
