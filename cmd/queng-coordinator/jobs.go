@@ -14,6 +14,7 @@ import (
 	"github.com/gabrielelanaro/queng/distributed"
 	"github.com/gabrielelanaro/queng/executor"
 	"github.com/gabrielelanaro/queng/logicalplan"
+	"github.com/gabrielelanaro/queng/optimizer"
 	"github.com/gabrielelanaro/queng/parser"
 	"github.com/gabrielelanaro/queng/physicalplan"
 	"github.com/google/uuid"
@@ -59,6 +60,11 @@ func (r *jobRegistry) submit(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logical, err := logicalplan.BuildLogicalPlan(stmt, r.tables)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	logical, err = optimizer.New(optimizer.ProjectionPushDownRule{}).Optimize(logical)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

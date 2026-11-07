@@ -10,6 +10,7 @@ import (
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/execution"
 	"github.com/gabrielelanaro/queng/logicalplan"
+	"github.com/gabrielelanaro/queng/optimizer"
 	"github.com/gabrielelanaro/queng/parser"
 	"github.com/gabrielelanaro/queng/physicalplan"
 )
@@ -77,6 +78,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 		tables[name] = source
 	}
 	logical, err := logicalplan.BuildLogicalPlan(statement, tables)
+	if err != nil {
+		return err
+	}
+	logical, err = optimizer.New(optimizer.ProjectionPushDownRule{}).Optimize(logical)
 	if err != nil {
 		return err
 	}
