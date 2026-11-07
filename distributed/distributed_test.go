@@ -48,20 +48,20 @@ func TestBuildStagesForHashJoin(t *testing.T) {
 		{
 			ID: 0,
 			Plan: ExchangeWriteExec{
-				Input: sales, KeyIndex: 1,
+				Input: sales, Partitioning: HashPartitioning{Keys: []int{1}},
 			},
 		},
 		{
 			ID: 1,
 			Plan: ExchangeWriteExec{
-				Input: products, StageID: 1, KeyIndex: 0,
+				Input: products, StageID: 1, Partitioning: HashPartitioning{Keys: []int{0}},
 			},
 		},
 		{
 			ID: 2, Dependencies: []int{0, 1},
 			Plan: physicalplan.HashJoinExec{
-				Left:         ExchangeReadExec{StageID: 0, OutputSchema: salesSchema},
-				Right:        ExchangeReadExec{StageID: 1, OutputSchema: productsSchema},
+				Left:         ExchangeReadExec{StageID: 0, OutputSchema: salesSchema, Partitioning: HashPartitioning{Keys: []int{1}}},
+				Right:        ExchangeReadExec{StageID: 1, OutputSchema: productsSchema, Partitioning: HashPartitioning{Keys: []int{0}}},
 				Type:         logicalplan.LeftJoin,
 				LeftKeys:     []int{1},
 				RightKeys:    []int{0},
@@ -95,16 +95,16 @@ func TestBuildStagesForNestedJoin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildStages() returned an error: %v", err)
 	}
-	inner.Left = ExchangeReadExec{StageID: 0, OutputSchema: schema}
-	inner.Right = ExchangeReadExec{StageID: 1, OutputSchema: schema}
-	outer.Left = ExchangeReadExec{StageID: 2, OutputSchema: innerSchema}
-	outer.Right = ExchangeReadExec{StageID: 3, OutputSchema: schema}
+	inner.Left = ExchangeReadExec{StageID: 0, OutputSchema: schema, Partitioning: HashPartitioning{Keys: []int{0}}}
+	inner.Right = ExchangeReadExec{StageID: 1, OutputSchema: schema, Partitioning: HashPartitioning{Keys: []int{0}}}
+	outer.Left = ExchangeReadExec{StageID: 2, OutputSchema: innerSchema, Partitioning: HashPartitioning{Keys: []int{0}}}
+	outer.Right = ExchangeReadExec{StageID: 3, OutputSchema: schema, Partitioning: HashPartitioning{Keys: []int{0}}}
 	projection.Input = outer
 	want := []Stage{
-		{ID: 0, Plan: ExchangeWriteExec{Input: scan, KeyIndex: 0}},
-		{ID: 1, Plan: ExchangeWriteExec{Input: scan, StageID: 1, KeyIndex: 0}},
-		{ID: 2, Plan: ExchangeWriteExec{Input: inner, StageID: 2, KeyIndex: 0}, Dependencies: []int{0, 1}},
-		{ID: 3, Plan: ExchangeWriteExec{Input: scan, StageID: 3, KeyIndex: 0}},
+		{ID: 0, Plan: ExchangeWriteExec{Input: scan, Partitioning: HashPartitioning{Keys: []int{0}}}},
+		{ID: 1, Plan: ExchangeWriteExec{Input: scan, StageID: 1, Partitioning: HashPartitioning{Keys: []int{0}}}},
+		{ID: 2, Plan: ExchangeWriteExec{Input: inner, StageID: 2, Partitioning: HashPartitioning{Keys: []int{0}}}, Dependencies: []int{0, 1}},
+		{ID: 3, Plan: ExchangeWriteExec{Input: scan, StageID: 3, Partitioning: HashPartitioning{Keys: []int{0}}}},
 		{ID: 4, Plan: projection, Dependencies: []int{2, 3}},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -143,7 +143,7 @@ func TestBuildStagesForGroupedAverage(t *testing.T) {
 		{
 			ID: 0,
 			Plan: ExchangeWriteExec{
-				KeyIndex: 0,
+				Partitioning: HashPartitioning{Keys: []int{0}},
 				Input: physicalplan.HashAggregateExec{
 					Input:         scan,
 					Mode:          physicalplan.AggregatePartial,
@@ -156,13 +156,67 @@ func TestBuildStagesForGroupedAverage(t *testing.T) {
 		{
 			ID: 1, Dependencies: []int{0},
 			Plan: physicalplan.HashAggregateExec{
-				Input:        ExchangeReadExec{StageID: 0, OutputSchema: partialSchema},
+				Input:        ExchangeReadExec{StageID: 0, OutputSchema: partialSchema, Partitioning: HashPartitioning{Keys: []int{0}}},
 				Mode:         physicalplan.AggregateFinal,
 				OutputSchema: resultSchema,
 				GroupExpr:    []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
 				AggregateExpr: []physicalplan.AggregateExpr{physicalplan.AvgExpr{
 					Expr:      physicalplan.ColumnExpr{Index: 1},
 					CountExpr: physicalplan.ColumnExpr{Index: 2},
+				}},
+			},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("BuildStages() = %#v; want %#v", got, want)
+	}
+}
+
+func TestBuildStagesForUngroupedAverage(t *testing.T) {
+	inputSchema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "price", Type: arrow.PrimitiveTypes.Float64},
+	}}
+	partialSchema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "sum", Type: arrow.PrimitiveTypes.Float64},
+		{Name: "count", Type: arrow.PrimitiveTypes.Int64},
+	}}
+	resultSchema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "AVG", Type: arrow.PrimitiveTypes.Float64},
+	}}
+	scan := physicalplan.ScanExec{Source: testSource{schema: inputSchema}}
+	plan := physicalplan.HashAggregateExec{
+		Input:         scan,
+		OutputSchema:  resultSchema,
+		AggregateExpr: []physicalplan.AggregateExpr{physicalplan.AvgExpr{Expr: physicalplan.ColumnExpr{Index: 0}}},
+	}
+
+	got, err := BuildStages(plan)
+	if err != nil {
+		t.Fatalf("BuildStages() returned an error: %v", err)
+	}
+
+	want := []Stage{
+		{
+			ID: 0,
+			Plan: ExchangeWriteExec{
+				Partitioning: SinglePartition{},
+				Input: physicalplan.HashAggregateExec{
+					Input:         scan,
+					Mode:          physicalplan.AggregatePartial,
+					OutputSchema:  partialSchema,
+					AggregateExpr: []physicalplan.AggregateExpr{physicalplan.AvgExpr{Expr: physicalplan.ColumnExpr{Index: 0}}},
+				},
+			},
+		},
+		{
+			ID: 1, Dependencies: []int{0},
+			Plan: physicalplan.HashAggregateExec{
+				Input:        ExchangeReadExec{StageID: 0, OutputSchema: partialSchema, Partitioning: SinglePartition{}},
+				Mode:         physicalplan.AggregateFinal,
+				OutputSchema: resultSchema,
+				AggregateExpr: []physicalplan.AggregateExpr{physicalplan.AvgExpr{
+					Expr:      physicalplan.ColumnExpr{Index: 0},
+					CountExpr: physicalplan.ColumnExpr{Index: 1},
 				}},
 			},
 		},

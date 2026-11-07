@@ -224,3 +224,36 @@ func TestRoundTripParquetScan(t *testing.T) {
 		t.Errorf("partition 1 = %v; want [20]", values)
 	}
 }
+
+func TestRoundTripSinglePartitionExchange(t *testing.T) {
+	plan := distributed.ExchangeWriteExec{
+		StageID:      2,
+		Partitioning: distributed.SinglePartition{},
+		Input: distributed.ExchangeReadExec{
+			StageID:      1,
+			Partitioning: distributed.SinglePartition{},
+			OutputSchema: datasource.Schema{Fields: []datasource.Field{
+				{Name: "sum", Type: arrow.PrimitiveTypes.Float64},
+			}},
+		},
+	}
+	message, err := planserde.SerializePlan(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := proto.Marshal(message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded := new(planserde.Plan)
+	if err := proto.Unmarshal(data, decoded); err != nil {
+		t.Fatal(err)
+	}
+	got, err := planserde.DeserializePlan(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, plan) {
+		t.Errorf("round trip = %#v; want %#v", got, plan)
+	}
+}

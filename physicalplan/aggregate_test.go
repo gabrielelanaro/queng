@@ -103,3 +103,50 @@ func assertAggregateRows(t *testing.T, plan physicalplan.HashAggregateExec, want
 		t.Errorf("aggregate rows = %v; want %v", got, want)
 	}
 }
+
+func TestUngroupedFinalAverageReturnsOneRow(t *testing.T) {
+	schema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "sum", Type: arrow.PrimitiveTypes.Float64},
+		{Name: "count", Type: arrow.PrimitiveTypes.Int64},
+	}}
+	for _, tc := range []struct {
+		name   string
+		sums   []any
+		counts []any
+		want   any
+	}{
+		{name: "unequal partial counts", sums: []any{30.0, 30.0}, counts: []any{int64(2), int64(1)}, want: 20.0},
+		{name: "empty partials", sums: []any{0.0, 0.0}, counts: []any{int64(0), int64(0)}, want: nil},
+		{name: "no rows", want: nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := batchInput{batchesSource{schema: schema, batches: []datasource.RecordBatch{
+				makeBatch(t, schema, tc.sums, tc.counts),
+			}}}
+			plan := physicalplan.HashAggregateExec{
+				Input: input,
+				Mode:  physicalplan.AggregateFinal,
+				OutputSchema: datasource.Schema{Fields: []datasource.Field{
+					{Name: "AVG", Type: arrow.PrimitiveTypes.Float64},
+				}},
+				AggregateExpr: []physicalplan.AggregateExpr{
+					physicalplan.AvgExpr{Expr: physicalplan.ColumnExpr{Index: 0}, CountExpr: physicalplan.ColumnExpr{Index: 1}},
+				},
+			}
+
+			var got []any
+			for batch, err := range plan.Execute(execution.Context{}, 0) {
+				if err != nil {
+					t.Fatal(err)
+				}
+				for row := range batch.Column(0).Len() {
+					got = append(got, batch.Column(0).Value(row))
+				}
+				batch.Release()
+			}
+			if !reflect.DeepEqual(got, []any{tc.want}) {
+				t.Errorf("average rows = %v; want [%v]", got, tc.want)
+			}
+		})
+	}
+}

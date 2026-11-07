@@ -26,5 +26,13 @@ enum JoinType { JOIN_TYPE_UNSPECIFIED = 0; LEFT = 1; }
 message AggregateExpression { oneof node { Expression avg = 1; } Expression count_expr = 2; }
 enum AggregateMode { COMPLETE = 0; PARTIAL = 1; FINAL = 2; }
 message HashAggregate { Plan input = 1; Schema output_schema = 2; repeated Expression group_expressions = 3; repeated AggregateExpression aggregate_expressions = 4; AggregateMode mode = 5; }
-message ExchangeWrite { Plan input = 1; int64 stage_id = 2; int64 key_index = 3; }
-message ExchangeRead { int64 stage_id = 1; Schema output_schema = 2; }
+message Partitioning {
+  oneof strategy {
+    HashPartitioning hash = 1;
+    SinglePartition single = 2;
+  }
+}
+message HashPartitioning { repeated int64 keys = 1; }
+message SinglePartition {}
+message ExchangeWrite { Plan input = 1; int64 stage_id = 2; reserved 3; Partitioning partitioning = 4; }
+message ExchangeRead { int64 stage_id = 1; Schema output_schema = 2; Partitioning partitioning = 3; }

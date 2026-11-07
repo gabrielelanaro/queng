@@ -1005,18 +1005,180 @@ func (x *HashAggregate) GetMode() AggregateMode {
 	return AggregateMode_COMPLETE
 }
 
+type Partitioning struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Strategy:
+	//
+	//	*Partitioning_Hash
+	//	*Partitioning_Single
+	Strategy      isPartitioning_Strategy `protobuf_oneof:"strategy"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Partitioning) Reset() {
+	*x = Partitioning{}
+	mi := &file_planserde_plan_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Partitioning) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Partitioning) ProtoMessage() {}
+
+func (x *Partitioning) ProtoReflect() protoreflect.Message {
+	mi := &file_planserde_plan_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Partitioning.ProtoReflect.Descriptor instead.
+func (*Partitioning) Descriptor() ([]byte, []int) {
+	return file_planserde_plan_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *Partitioning) GetStrategy() isPartitioning_Strategy {
+	if x != nil {
+		return x.Strategy
+	}
+	return nil
+}
+
+func (x *Partitioning) GetHash() *HashPartitioning {
+	if x != nil {
+		if x, ok := x.Strategy.(*Partitioning_Hash); ok {
+			return x.Hash
+		}
+	}
+	return nil
+}
+
+func (x *Partitioning) GetSingle() *SinglePartition {
+	if x != nil {
+		if x, ok := x.Strategy.(*Partitioning_Single); ok {
+			return x.Single
+		}
+	}
+	return nil
+}
+
+type isPartitioning_Strategy interface {
+	isPartitioning_Strategy()
+}
+
+type Partitioning_Hash struct {
+	Hash *HashPartitioning `protobuf:"bytes,1,opt,name=hash,proto3,oneof"`
+}
+
+type Partitioning_Single struct {
+	Single *SinglePartition `protobuf:"bytes,2,opt,name=single,proto3,oneof"`
+}
+
+func (*Partitioning_Hash) isPartitioning_Strategy() {}
+
+func (*Partitioning_Single) isPartitioning_Strategy() {}
+
+type HashPartitioning struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Keys          []int64                `protobuf:"varint,1,rep,packed,name=keys,proto3" json:"keys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HashPartitioning) Reset() {
+	*x = HashPartitioning{}
+	mi := &file_planserde_plan_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HashPartitioning) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HashPartitioning) ProtoMessage() {}
+
+func (x *HashPartitioning) ProtoReflect() protoreflect.Message {
+	mi := &file_planserde_plan_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HashPartitioning.ProtoReflect.Descriptor instead.
+func (*HashPartitioning) Descriptor() ([]byte, []int) {
+	return file_planserde_plan_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *HashPartitioning) GetKeys() []int64 {
+	if x != nil {
+		return x.Keys
+	}
+	return nil
+}
+
+type SinglePartition struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SinglePartition) Reset() {
+	*x = SinglePartition{}
+	mi := &file_planserde_plan_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SinglePartition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SinglePartition) ProtoMessage() {}
+
+func (x *SinglePartition) ProtoReflect() protoreflect.Message {
+	mi := &file_planserde_plan_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SinglePartition.ProtoReflect.Descriptor instead.
+func (*SinglePartition) Descriptor() ([]byte, []int) {
+	return file_planserde_plan_proto_rawDescGZIP(), []int{14}
+}
+
 type ExchangeWrite struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Input         *Plan                  `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`
 	StageId       int64                  `protobuf:"varint,2,opt,name=stage_id,json=stageId,proto3" json:"stage_id,omitempty"`
-	KeyIndex      int64                  `protobuf:"varint,3,opt,name=key_index,json=keyIndex,proto3" json:"key_index,omitempty"`
+	Partitioning  *Partitioning          `protobuf:"bytes,4,opt,name=partitioning,proto3" json:"partitioning,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ExchangeWrite) Reset() {
 	*x = ExchangeWrite{}
-	mi := &file_planserde_plan_proto_msgTypes[12]
+	mi := &file_planserde_plan_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1028,7 +1190,7 @@ func (x *ExchangeWrite) String() string {
 func (*ExchangeWrite) ProtoMessage() {}
 
 func (x *ExchangeWrite) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[12]
+	mi := &file_planserde_plan_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1041,7 +1203,7 @@ func (x *ExchangeWrite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExchangeWrite.ProtoReflect.Descriptor instead.
 func (*ExchangeWrite) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{12}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ExchangeWrite) GetInput() *Plan {
@@ -1058,24 +1220,25 @@ func (x *ExchangeWrite) GetStageId() int64 {
 	return 0
 }
 
-func (x *ExchangeWrite) GetKeyIndex() int64 {
+func (x *ExchangeWrite) GetPartitioning() *Partitioning {
 	if x != nil {
-		return x.KeyIndex
+		return x.Partitioning
 	}
-	return 0
+	return nil
 }
 
 type ExchangeRead struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	StageId       int64                  `protobuf:"varint,1,opt,name=stage_id,json=stageId,proto3" json:"stage_id,omitempty"`
 	OutputSchema  *Schema                `protobuf:"bytes,2,opt,name=output_schema,json=outputSchema,proto3" json:"output_schema,omitempty"`
+	Partitioning  *Partitioning          `protobuf:"bytes,3,opt,name=partitioning,proto3" json:"partitioning,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ExchangeRead) Reset() {
 	*x = ExchangeRead{}
-	mi := &file_planserde_plan_proto_msgTypes[13]
+	mi := &file_planserde_plan_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1087,7 +1250,7 @@ func (x *ExchangeRead) String() string {
 func (*ExchangeRead) ProtoMessage() {}
 
 func (x *ExchangeRead) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[13]
+	mi := &file_planserde_plan_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1100,7 +1263,7 @@ func (x *ExchangeRead) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExchangeRead.ProtoReflect.Descriptor instead.
 func (*ExchangeRead) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{13}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ExchangeRead) GetStageId() int64 {
@@ -1113,6 +1276,13 @@ func (x *ExchangeRead) GetStageId() int64 {
 func (x *ExchangeRead) GetOutputSchema() *Schema {
 	if x != nil {
 		return x.OutputSchema
+	}
+	return nil
+}
+
+func (x *ExchangeRead) GetPartitioning() *Partitioning {
+	if x != nil {
+		return x.Partitioning
 	}
 	return nil
 }
@@ -1182,14 +1352,23 @@ const file_planserde_plan_proto_rawDesc = "" +
 	"\routput_schema\x18\x02 \x01(\v2\x12.queng.plan.SchemaR\foutputSchema\x12C\n" +
 	"\x11group_expressions\x18\x03 \x03(\v2\x16.queng.plan.ExpressionR\x10groupExpressions\x12T\n" +
 	"\x15aggregate_expressions\x18\x04 \x03(\v2\x1f.queng.plan.AggregateExpressionR\x14aggregateExpressions\x12-\n" +
-	"\x04mode\x18\x05 \x01(\x0e2\x19.queng.plan.AggregateModeR\x04mode\"o\n" +
+	"\x04mode\x18\x05 \x01(\x0e2\x19.queng.plan.AggregateModeR\x04mode\"\x85\x01\n" +
+	"\fPartitioning\x122\n" +
+	"\x04hash\x18\x01 \x01(\v2\x1c.queng.plan.HashPartitioningH\x00R\x04hash\x125\n" +
+	"\x06single\x18\x02 \x01(\v2\x1b.queng.plan.SinglePartitionH\x00R\x06singleB\n" +
+	"\n" +
+	"\bstrategy\"&\n" +
+	"\x10HashPartitioning\x12\x12\n" +
+	"\x04keys\x18\x01 \x03(\x03R\x04keys\"\x11\n" +
+	"\x0fSinglePartition\"\x96\x01\n" +
 	"\rExchangeWrite\x12&\n" +
 	"\x05input\x18\x01 \x01(\v2\x10.queng.plan.PlanR\x05input\x12\x19\n" +
-	"\bstage_id\x18\x02 \x01(\x03R\astageId\x12\x1b\n" +
-	"\tkey_index\x18\x03 \x01(\x03R\bkeyIndex\"b\n" +
+	"\bstage_id\x18\x02 \x01(\x03R\astageId\x12<\n" +
+	"\fpartitioning\x18\x04 \x01(\v2\x18.queng.plan.PartitioningR\fpartitioningJ\x04\b\x03\x10\x04\"\xa0\x01\n" +
 	"\fExchangeRead\x12\x19\n" +
 	"\bstage_id\x18\x01 \x01(\x03R\astageId\x127\n" +
-	"\routput_schema\x18\x02 \x01(\v2\x12.queng.plan.SchemaR\foutputSchema*S\n" +
+	"\routput_schema\x18\x02 \x01(\v2\x12.queng.plan.SchemaR\foutputSchema\x12<\n" +
+	"\fpartitioning\x18\x03 \x01(\v2\x18.queng.plan.PartitioningR\fpartitioning*S\n" +
 	"\bDataType\x12\x19\n" +
 	"\x15DATA_TYPE_UNSPECIFIED\x10\x00\x12\t\n" +
 	"\x05INT64\x10\x01\x12\v\n" +
@@ -1218,7 +1397,7 @@ func file_planserde_plan_proto_rawDescGZIP() []byte {
 }
 
 var file_planserde_plan_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_planserde_plan_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_planserde_plan_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_planserde_plan_proto_goTypes = []any{
 	(DataType)(0),               // 0: queng.plan.DataType
 	(JoinType)(0),               // 1: queng.plan.JoinType
@@ -1235,16 +1414,19 @@ var file_planserde_plan_proto_goTypes = []any{
 	(*HashJoin)(nil),            // 12: queng.plan.HashJoin
 	(*AggregateExpression)(nil), // 13: queng.plan.AggregateExpression
 	(*HashAggregate)(nil),       // 14: queng.plan.HashAggregate
-	(*ExchangeWrite)(nil),       // 15: queng.plan.ExchangeWrite
-	(*ExchangeRead)(nil),        // 16: queng.plan.ExchangeRead
+	(*Partitioning)(nil),        // 15: queng.plan.Partitioning
+	(*HashPartitioning)(nil),    // 16: queng.plan.HashPartitioning
+	(*SinglePartition)(nil),     // 17: queng.plan.SinglePartition
+	(*ExchangeWrite)(nil),       // 18: queng.plan.ExchangeWrite
+	(*ExchangeRead)(nil),        // 19: queng.plan.ExchangeRead
 }
 var file_planserde_plan_proto_depIdxs = []int32{
 	8,  // 0: queng.plan.Plan.scan:type_name -> queng.plan.Scan
 	11, // 1: queng.plan.Plan.projection:type_name -> queng.plan.Projection
 	12, // 2: queng.plan.Plan.hash_join:type_name -> queng.plan.HashJoin
 	14, // 3: queng.plan.Plan.hash_aggregate:type_name -> queng.plan.HashAggregate
-	15, // 4: queng.plan.Plan.exchange_write:type_name -> queng.plan.ExchangeWrite
-	16, // 5: queng.plan.Plan.exchange_read:type_name -> queng.plan.ExchangeRead
+	18, // 4: queng.plan.Plan.exchange_write:type_name -> queng.plan.ExchangeWrite
+	19, // 5: queng.plan.Plan.exchange_read:type_name -> queng.plan.ExchangeRead
 	5,  // 6: queng.plan.Schema.fields:type_name -> queng.plan.Field
 	0,  // 7: queng.plan.Field.type:type_name -> queng.plan.DataType
 	4,  // 8: queng.plan.CsvSource.schema:type_name -> queng.plan.Schema
@@ -1267,13 +1449,17 @@ var file_planserde_plan_proto_depIdxs = []int32{
 	9,  // 25: queng.plan.HashAggregate.group_expressions:type_name -> queng.plan.Expression
 	13, // 26: queng.plan.HashAggregate.aggregate_expressions:type_name -> queng.plan.AggregateExpression
 	2,  // 27: queng.plan.HashAggregate.mode:type_name -> queng.plan.AggregateMode
-	3,  // 28: queng.plan.ExchangeWrite.input:type_name -> queng.plan.Plan
-	4,  // 29: queng.plan.ExchangeRead.output_schema:type_name -> queng.plan.Schema
-	30, // [30:30] is the sub-list for method output_type
-	30, // [30:30] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	16, // 28: queng.plan.Partitioning.hash:type_name -> queng.plan.HashPartitioning
+	17, // 29: queng.plan.Partitioning.single:type_name -> queng.plan.SinglePartition
+	3,  // 30: queng.plan.ExchangeWrite.input:type_name -> queng.plan.Plan
+	15, // 31: queng.plan.ExchangeWrite.partitioning:type_name -> queng.plan.Partitioning
+	4,  // 32: queng.plan.ExchangeRead.output_schema:type_name -> queng.plan.Schema
+	15, // 33: queng.plan.ExchangeRead.partitioning:type_name -> queng.plan.Partitioning
+	34, // [34:34] is the sub-list for method output_type
+	34, // [34:34] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_planserde_plan_proto_init() }
@@ -1295,13 +1481,17 @@ func file_planserde_plan_proto_init() {
 	file_planserde_plan_proto_msgTypes[10].OneofWrappers = []any{
 		(*AggregateExpression_Avg)(nil),
 	}
+	file_planserde_plan_proto_msgTypes[12].OneofWrappers = []any{
+		(*Partitioning_Hash)(nil),
+		(*Partitioning_Single)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_planserde_plan_proto_rawDesc), len(file_planserde_plan_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   14,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

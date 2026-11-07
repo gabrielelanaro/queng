@@ -2,11 +2,8 @@
 package distributed
 
 import (
-	"encoding/binary"
 	"fmt"
-	"hash/fnv"
 	"iter"
-	"math"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/rs/zerolog/log"
@@ -25,9 +22,9 @@ type Stage struct {
 
 // ExchangeWriteExec partitions its input for downstream stages.
 type ExchangeWriteExec struct {
-	Input    physicalplan.PhysicalPlan
-	StageID  int
-	KeyIndex int
+	Input        physicalplan.PhysicalPlan
+	StageID      int
+	Partitioning Partitioning
 }
 
 func (e ExchangeWriteExec) Schema() datasource.Schema { return e.Input.Schema() }
@@ -59,17 +56,17 @@ func (e ExchangeWriteExec) Execute(ctx execution.Context, partitionID int) iter.
 
 // writeBatch groups rows by output partition and writes each group as a batch.
 func (e ExchangeWriteExec) writeBatch(ctx execution.Context, batch datasource.RecordBatch) error {
-	if e.KeyIndex < 0 || e.KeyIndex >= batch.ColumnCount() {
-		return fmt.Errorf("exchange key index %d out of range", e.KeyIndex)
+	partitionCount := e.Partitioning.PartitionCount(ctx.ShufflePartitions)
+	if partitionCount == 1 {
+		key := execution.ExchangeKey{JobID: ctx.JobID, StageID: e.StageID, TaskID: ctx.TaskID, PartitionID: 0}
+		return ctx.Exchange.Write(key, batch)
 	}
-	rowsByPartition := make([][]int, ctx.ShufflePartitions)
-	keyColumn := batch.Column(e.KeyIndex)
-	for row := range keyColumn.Len() {
-		hash, err := hashKey(keyColumn.Value(row))
+	rowsByPartition := make([][]int, partitionCount)
+	for row := range batch.Column(0).Len() {
+		partition, err := e.Partitioning.partitionForRow(batch, row, partitionCount)
 		if err != nil {
 			return err
 		}
-		partition := int(hash % uint64(ctx.ShufflePartitions))
 		rowsByPartition[partition] = append(rowsByPartition[partition], row)
 	}
 	for partitionID, rows := range rowsByPartition {
@@ -91,44 +88,11 @@ func (e ExchangeWriteExec) writeBatch(ctx execution.Context, batch datasource.Re
 	return nil
 }
 
-// hashKey uses a stable hash so equal keys route identically on every worker.
-func hashKey(value any) (uint64, error) {
-	h := fnv.New64a()
-	var bits [8]byte
-	switch v := value.(type) {
-	case nil:
-		h.Write([]byte{0})
-	case int64:
-		h.Write([]byte{1})
-		binary.LittleEndian.PutUint64(bits[:], uint64(v))
-		h.Write(bits[:])
-	case float64:
-		h.Write([]byte{2})
-		if v == 0 {
-			v = 0 // Both signs of zero compare equal.
-		}
-		binary.LittleEndian.PutUint64(bits[:], math.Float64bits(v))
-		h.Write(bits[:])
-	case string:
-		h.Write([]byte{3})
-		h.Write([]byte(v))
-	case bool:
-		h.Write([]byte{4})
-		if v {
-			h.Write([]byte{1})
-		} else {
-			h.Write([]byte{0})
-		}
-	default:
-		return 0, fmt.Errorf("unsupported exchange key type: %T", value)
-	}
-	return h.Sum64(), nil
-}
-
 // ExchangeReadExec reads the partition produced by an upstream stage.
 type ExchangeReadExec struct {
 	StageID      int
 	OutputSchema datasource.Schema
+	Partitioning Partitioning
 }
 
 func (e ExchangeReadExec) Schema() datasource.Schema { return e.OutputSchema }
@@ -223,14 +187,14 @@ func (b *stageBuilder) buildInput(plan physicalplan.PhysicalPlan, keyIndex int) 
 		return nil, err
 	}
 	id := b.addStageWithID(func(id int) physicalplan.PhysicalPlan {
-		return ExchangeWriteExec{Input: input, StageID: id, KeyIndex: keyIndex}
+		return ExchangeWriteExec{Input: input, StageID: id, Partitioning: HashPartitioning{Keys: []int{keyIndex}}}
 	})
-	return ExchangeReadExec{StageID: id, OutputSchema: schema}, nil
+	return ExchangeReadExec{StageID: id, OutputSchema: schema, Partitioning: HashPartitioning{Keys: []int{keyIndex}}}, nil
 }
 
 func (b *stageBuilder) buildAggregate(aggregate physicalplan.HashAggregateExec) (physicalplan.PhysicalPlan, error) {
-	if aggregate.Mode != physicalplan.AggregateComplete || len(aggregate.GroupExpr) != 1 {
-		return nil, fmt.Errorf("distributed aggregation requires one grouping expression")
+	if aggregate.Mode != physicalplan.AggregateComplete || len(aggregate.GroupExpr) > 1 {
+		return nil, fmt.Errorf("distributed aggregation requires complete mode and at most one grouping expression")
 	}
 	input, err := b.buildPlan(aggregate.Input)
 	if err != nil {
@@ -253,14 +217,20 @@ func (b *stageBuilder) buildAggregate(aggregate physicalplan.HashAggregateExec) 
 		GroupExpr:     aggregate.GroupExpr,
 		AggregateExpr: aggregate.AggregateExpr,
 	}
+	var partitioning Partitioning = SinglePartition{}
+	var finalGroups []physicalplan.PhysicalExpr
+	if len(aggregate.GroupExpr) > 0 {
+		partitioning = HashPartitioning{Keys: []int{0}}
+		finalGroups = []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}}
+	}
 	id := b.addStageWithID(func(id int) physicalplan.PhysicalPlan {
-		return ExchangeWriteExec{Input: partial, StageID: id, KeyIndex: 0}
+		return ExchangeWriteExec{Input: partial, StageID: id, Partitioning: partitioning}
 	})
 	return physicalplan.HashAggregateExec{
-		Input:         ExchangeReadExec{StageID: id, OutputSchema: partialSchema},
+		Input:         ExchangeReadExec{StageID: id, OutputSchema: partialSchema, Partitioning: partitioning},
 		Mode:          physicalplan.AggregateFinal,
 		OutputSchema:  aggregate.OutputSchema,
-		GroupExpr:     []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
+		GroupExpr:     finalGroups,
 		AggregateExpr: finalExprs,
 	}, nil
 }

@@ -190,7 +190,7 @@ func stagePartitionCount(plan physicalplan.PhysicalPlan, shufflePartitions int) 
 		case physicalplan.ScanExec:
 			n = p.Source.PartitionCount()
 		case distributed.ExchangeReadExec:
-			n = shufflePartitions
+			n = p.Partitioning.PartitionCount(shufflePartitions)
 		default:
 			for _, child := range node.Children() {
 				if err := visit(child); err != nil {

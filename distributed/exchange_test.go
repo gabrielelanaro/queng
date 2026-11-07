@@ -48,8 +48,9 @@ func TestExchangeWritePartitionsRowsByKey(t *testing.T) {
 	store := NewMemoryExchange()
 	defer store.Close()
 	writer := ExchangeWriteExec{
-		Input:   physicalplan.ScanExec{Source: source},
-		StageID: 0,
+		Input:        physicalplan.ScanExec{Source: source},
+		StageID:      0,
+		Partitioning: HashPartitioning{Keys: []int{0}},
 	}
 
 	for batch, err := range writer.Execute(execution.Context{JobID: "job-1", TaskID: 7, Exchange: store, ShufflePartitions: 2}, 0) {
@@ -112,7 +113,7 @@ func TestExchangeReadCollectsPartitionFromAllProducers(t *testing.T) {
 		}
 	}
 
-	reader := ExchangeReadExec{StageID: 1, OutputSchema: source.Schema()}
+	reader := ExchangeReadExec{StageID: 1, OutputSchema: source.Schema(), Partitioning: HashPartitioning{Keys: []int{0}}}
 	var batches int
 	for batch, err := range reader.Execute(execution.Context{Context: context.Background(), JobID: "job-1", Exchange: store}, 2) {
 		if err != nil {
@@ -127,5 +128,47 @@ func TestExchangeReadCollectsPartitionFromAllProducers(t *testing.T) {
 	}
 	if batches != 2 {
 		t.Errorf("read %d batches; want 2 from the matching producers", batches)
+	}
+}
+
+func TestSinglePartitionExchangeWritesAllRowsToPartitionZero(t *testing.T) {
+	source := makeSalesSource(t)
+	store := NewMemoryExchange()
+	defer store.Close()
+	writer := ExchangeWriteExec{
+		Input:        physicalplan.ScanExec{Source: source},
+		Partitioning: SinglePartition{},
+	}
+	// Multiple producers must gather into the same output partition.
+	for taskID := range 2 {
+		ctx := execution.Context{JobID: "gather", TaskID: taskID, Exchange: store, ShufflePartitions: 3}
+		for batch, err := range writer.Execute(ctx, 0) {
+			batch.Release()
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Fatal("writer returned a batch")
+		}
+	}
+
+	var sales []any
+	for partition := range 3 {
+		for batch, err := range store.ReadPartition(context.Background(), "gather", 0, partition) {
+			if err != nil {
+				t.Fatal(err)
+			}
+			if partition != 0 {
+				batch.Release()
+				t.Fatalf("gather wrote to partition %d; want only partition 0", partition)
+			}
+			for row := range batch.Column(1).Len() {
+				sales = append(sales, batch.Column(1).Value(row))
+			}
+			batch.Release()
+		}
+	}
+	want := []any{10.0, 20.0, 30.0, 40.0, 10.0, 20.0, 30.0, 40.0}
+	if !reflect.DeepEqual(sales, want) {
+		t.Errorf("gathered sales = %v; want %v", sales, want)
 	}
 }

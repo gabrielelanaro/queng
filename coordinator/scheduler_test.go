@@ -200,3 +200,39 @@ func TestFailedStageIsRecorded(t *testing.T) {
 	}
 	t.Fatal("failed stage was not recorded")
 }
+
+type successfulExecutor struct{}
+
+func (successfulExecutor) Submit(_ context.Context, _ executor.Task, _ executor.EventHandler) <-chan executor.TaskResult {
+	result := make(chan executor.TaskResult, 1)
+	result <- executor.TaskResult{}
+	close(result)
+	return result
+}
+
+func TestGatherStageReportsOneTask(t *testing.T) {
+	scheduler, err := coordinator.NewScheduler(
+		coordinator.NewMemoryLocationTracker(),
+		map[string]executor.Executor{"worker": successfulExecutor{}},
+		4,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := coordinator.NewJob("gather", []distributed.Stage{
+		{ID: 1, Plan: distributed.ExchangeReadExec{Partitioning: distributed.SinglePartition{}}},
+	})
+
+	if _, err := scheduler.Run(context.Background(), job); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range job.Events() {
+		if event.Kind == "stage_started" {
+			if event.TaskCount != 1 {
+				t.Errorf("gather stage has %d tasks; want 1", event.TaskCount)
+			}
+			return
+		}
+	}
+	t.Fatal("missing stage started event")
+}

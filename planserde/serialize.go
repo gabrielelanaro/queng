@@ -113,13 +113,21 @@ func SerializePlan(plan physicalplan.PhysicalPlan) (*Plan, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &Plan{Node: &Plan_ExchangeWrite{ExchangeWrite: &ExchangeWrite{Input: input, StageId: int64(p.StageID), KeyIndex: int64(p.KeyIndex)}}}, nil
+		partitioning, err := encodePartitioning(p.Partitioning)
+		if err != nil {
+			return nil, err
+		}
+		return &Plan{Node: &Plan_ExchangeWrite{ExchangeWrite: &ExchangeWrite{Input: input, StageId: int64(p.StageID), Partitioning: partitioning}}}, nil
 	case distributed.ExchangeReadExec:
 		schema, err := encodeSchema(p.OutputSchema)
 		if err != nil {
 			return nil, err
 		}
-		return &Plan{Node: &Plan_ExchangeRead{ExchangeRead: &ExchangeRead{StageId: int64(p.StageID), OutputSchema: schema}}}, nil
+		partitioning, err := encodePartitioning(p.Partitioning)
+		if err != nil {
+			return nil, err
+		}
+		return &Plan{Node: &Plan_ExchangeRead{ExchangeRead: &ExchangeRead{StageId: int64(p.StageID), OutputSchema: schema, Partitioning: partitioning}}}, nil
 	default:
 		return nil, fmt.Errorf("unsupported physical plan: %T", plan)
 	}
@@ -309,7 +317,11 @@ func DeserializePlan(plan *Plan) (physicalplan.PhysicalPlan, error) {
 		if err != nil {
 			return nil, err
 		}
-		return distributed.ExchangeWriteExec{Input: input, StageID: int(x.StageId), KeyIndex: int(x.KeyIndex)}, nil
+		partitioning, err := decodePartitioning(x.Partitioning)
+		if err != nil {
+			return nil, err
+		}
+		return distributed.ExchangeWriteExec{Input: input, StageID: int(x.StageId), Partitioning: partitioning}, nil
 	case *Plan_ExchangeRead:
 		if p.ExchangeRead == nil {
 			return nil, fmt.Errorf("missing exchange read")
@@ -319,7 +331,11 @@ func DeserializePlan(plan *Plan) (physicalplan.PhysicalPlan, error) {
 		if err != nil {
 			return nil, err
 		}
-		return distributed.ExchangeReadExec{StageID: int(x.StageId), OutputSchema: schema}, nil
+		partitioning, err := decodePartitioning(x.Partitioning)
+		if err != nil {
+			return nil, err
+		}
+		return distributed.ExchangeReadExec{StageID: int(x.StageId), OutputSchema: schema, Partitioning: partitioning}, nil
 	default:
 		return nil, fmt.Errorf("unsupported plan node: %T", plan.Node)
 	}
@@ -374,5 +390,41 @@ func decodeExpr(expr *Expression) (physicalplan.PhysicalExpr, error) {
 		return physicalplan.ColumnExpr{Index: int(e.Column.Index)}, nil
 	default:
 		return nil, fmt.Errorf("unsupported expression: %T", expr.Node)
+	}
+}
+
+func encodePartitioning(partitioning distributed.Partitioning) (*Partitioning, error) {
+	switch p := partitioning.(type) {
+	case distributed.HashPartitioning:
+		keys := make([]int64, len(p.Keys))
+		for i, key := range p.Keys {
+			keys[i] = int64(key)
+		}
+		return &Partitioning{Strategy: &Partitioning_Hash{Hash: &HashPartitioning{Keys: keys}}}, nil
+	case distributed.SinglePartition:
+		return &Partitioning{Strategy: &Partitioning_Single{Single: &SinglePartition{}}}, nil
+	default:
+		return nil, fmt.Errorf("unsupported partitioning: %T", partitioning)
+	}
+}
+
+func decodePartitioning(partitioning *Partitioning) (distributed.Partitioning, error) {
+	if partitioning == nil {
+		return nil, fmt.Errorf("missing partitioning")
+	}
+	switch p := partitioning.Strategy.(type) {
+	case *Partitioning_Hash:
+		if p.Hash == nil {
+			return nil, fmt.Errorf("missing hash partitioning")
+		}
+		keys := make([]int, len(p.Hash.Keys))
+		for i, key := range p.Hash.Keys {
+			keys[i] = int(key)
+		}
+		return distributed.HashPartitioning{Keys: keys}, nil
+	case *Partitioning_Single:
+		return distributed.SinglePartition{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported partitioning: %T", partitioning.Strategy)
 	}
 }

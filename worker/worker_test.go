@@ -36,7 +36,7 @@ func makeExchangePlan(t *testing.T) *planserde.Plan {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := planserde.SerializePlan(distributed.ExchangeWriteExec{Input: physicalplan.ScanExec{Source: source}, StageID: 3, KeyIndex: 0})
+	plan, err := planserde.SerializePlan(distributed.ExchangeWriteExec{Input: physicalplan.ScanExec{Source: source}, StageID: 3, Partitioning: distributed.HashPartitioning{Keys: []int{0}}})
 	if err != nil {
 		t.Fatal(err)
 	}
