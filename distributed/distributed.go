@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"hash/fnv"
 	"iter"
-
-	"github.com/rs/zerolog/log"
 	"math"
+
+	"github.com/apache/arrow-go/v18/arrow"
+	"github.com/rs/zerolog/log"
 
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/execution"
@@ -191,6 +192,8 @@ func (b *stageBuilder) buildPlan(plan physicalplan.PhysicalPlan) (physicalplan.P
 		}
 		p.Input = input
 		return p, nil
+	case physicalplan.HashAggregateExec:
+		return b.buildAggregate(p)
 	case physicalplan.HashJoinExec:
 		if len(p.LeftKeys) != 1 || len(p.RightKeys) != 1 {
 			return nil, fmt.Errorf("distributed join requires one key per input")
@@ -223,4 +226,41 @@ func (b *stageBuilder) buildInput(plan physicalplan.PhysicalPlan, keyIndex int) 
 		return ExchangeWriteExec{Input: input, StageID: id, KeyIndex: keyIndex}
 	})
 	return ExchangeReadExec{StageID: id, OutputSchema: schema}, nil
+}
+
+func (b *stageBuilder) buildAggregate(aggregate physicalplan.HashAggregateExec) (physicalplan.PhysicalPlan, error) {
+	if aggregate.Mode != physicalplan.AggregateComplete || len(aggregate.GroupExpr) != 1 {
+		return nil, fmt.Errorf("distributed aggregation requires one grouping expression")
+	}
+	input, err := b.buildPlan(aggregate.Input)
+	if err != nil {
+		return nil, err
+	}
+	partialSchema := datasource.Schema{Fields: append([]datasource.Field(nil), aggregate.OutputSchema.Fields[:len(aggregate.GroupExpr)]...)}
+	finalExprs := make([]physicalplan.AggregateExpr, 0, len(aggregate.AggregateExpr))
+	for _, expr := range aggregate.AggregateExpr {
+		if _, ok := expr.(physicalplan.AvgExpr); !ok {
+			return nil, fmt.Errorf("unsupported distributed aggregate: %T", expr)
+		}
+		index := len(partialSchema.Fields)
+		partialSchema.Fields = append(partialSchema.Fields, datasource.Field{Name: "sum", Type: arrow.PrimitiveTypes.Float64}, datasource.Field{Name: "count", Type: arrow.PrimitiveTypes.Int64})
+		finalExprs = append(finalExprs, physicalplan.AvgExpr{Expr: physicalplan.ColumnExpr{Index: index}, CountExpr: physicalplan.ColumnExpr{Index: index + 1}})
+	}
+	partial := physicalplan.HashAggregateExec{
+		Input:         input,
+		Mode:          physicalplan.AggregatePartial,
+		OutputSchema:  partialSchema,
+		GroupExpr:     aggregate.GroupExpr,
+		AggregateExpr: aggregate.AggregateExpr,
+	}
+	id := b.addStageWithID(func(id int) physicalplan.PhysicalPlan {
+		return ExchangeWriteExec{Input: partial, StageID: id, KeyIndex: 0}
+	})
+	return physicalplan.HashAggregateExec{
+		Input:         ExchangeReadExec{StageID: id, OutputSchema: partialSchema},
+		Mode:          physicalplan.AggregateFinal,
+		OutputSchema:  aggregate.OutputSchema,
+		GroupExpr:     []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
+		AggregateExpr: finalExprs,
+	}, nil
 }

@@ -88,7 +88,7 @@ func SerializePlan(plan physicalplan.PhysicalPlan) (*Plan, error) {
 		if err != nil {
 			return nil, err
 		}
-		a := &HashAggregate{Input: input, OutputSchema: schema, GroupExpressions: groups}
+		a := &HashAggregate{Input: input, OutputSchema: schema, GroupExpressions: groups, Mode: AggregateMode(p.Mode)}
 		for _, expr := range p.AggregateExpr {
 			avg, ok := expr.(physicalplan.AvgExpr)
 			if !ok {
@@ -98,7 +98,14 @@ func SerializePlan(plan physicalplan.PhysicalPlan) (*Plan, error) {
 			if err != nil {
 				return nil, err
 			}
-			a.AggregateExpressions = append(a.AggregateExpressions, &AggregateExpression{Node: &AggregateExpression_Avg{Avg: arg}})
+			aggregate := &AggregateExpression{Node: &AggregateExpression_Avg{Avg: arg}}
+			if avg.CountExpr != nil {
+				aggregate.CountExpr, err = encodeExpr(avg.CountExpr)
+				if err != nil {
+					return nil, err
+				}
+			}
+			a.AggregateExpressions = append(a.AggregateExpressions, aggregate)
 		}
 		return &Plan{Node: &Plan_HashAggregate{HashAggregate: a}}, nil
 	case distributed.ExchangeWriteExec:
@@ -269,7 +276,7 @@ func DeserializePlan(plan *Plan) (physicalplan.PhysicalPlan, error) {
 		if err != nil {
 			return nil, err
 		}
-		a := physicalplan.HashAggregateExec{Input: input, OutputSchema: schema, GroupExpr: groups}
+		a := physicalplan.HashAggregateExec{Input: input, OutputSchema: schema, GroupExpr: groups, Mode: physicalplan.AggregateMode(x.Mode)}
 		for _, expr := range x.AggregateExpressions {
 			if expr == nil {
 				return nil, fmt.Errorf("missing aggregate expression")
@@ -280,7 +287,14 @@ func DeserializePlan(plan *Plan) (physicalplan.PhysicalPlan, error) {
 				if err != nil {
 					return nil, err
 				}
-				a.AggregateExpr = append(a.AggregateExpr, physicalplan.AvgExpr{Expr: arg})
+				avg := physicalplan.AvgExpr{Expr: arg}
+				if expr.CountExpr != nil {
+					avg.CountExpr, err = decodeExpr(expr.CountExpr)
+					if err != nil {
+						return nil, err
+					}
+				}
+				a.AggregateExpr = append(a.AggregateExpr, avg)
 			default:
 				return nil, fmt.Errorf("unsupported aggregate expression: %T", expr.Node)
 			}

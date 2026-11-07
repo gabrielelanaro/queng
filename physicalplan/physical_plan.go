@@ -32,7 +32,8 @@ type AggregateExpr interface {
 
 // AvgExpr describes an average over an input expression.
 type AvgExpr struct {
-	Expr PhysicalExpr
+	Expr      PhysicalExpr
+	CountExpr PhysicalExpr
 }
 
 func (a AvgExpr) InputExpression() PhysicalExpr { return a.Expr }
@@ -106,8 +107,17 @@ func (p ProjectionExec) Execute(ctx execution.Context, partitionID int) iter.Seq
 	}
 }
 
+type AggregateMode int
+
+const (
+	AggregateComplete AggregateMode = iota
+	AggregatePartial
+	AggregateFinal
+)
+
 // HashAggregateExec groups rows and computes aggregate expressions.
 type HashAggregateExec struct {
+	Mode          AggregateMode
 	Input         PhysicalPlan
 	OutputSchema  datasource.Schema
 	GroupExpr     []PhysicalExpr

@@ -111,3 +111,63 @@ func TestBuildStagesForNestedJoin(t *testing.T) {
 		t.Errorf("BuildStages() = %#v; want %#v", got, want)
 	}
 }
+
+func TestBuildStagesForGroupedAverage(t *testing.T) {
+	inputSchema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "category", Type: arrow.BinaryTypes.String},
+		{Name: "price", Type: arrow.PrimitiveTypes.Float64},
+	}}
+	partialSchema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "category", Type: arrow.BinaryTypes.String},
+		{Name: "sum", Type: arrow.PrimitiveTypes.Float64},
+		{Name: "count", Type: arrow.PrimitiveTypes.Int64},
+	}}
+	resultSchema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "category", Type: arrow.BinaryTypes.String},
+		{Name: "AVG", Type: arrow.PrimitiveTypes.Float64},
+	}}
+	scan := physicalplan.ScanExec{Source: testSource{schema: inputSchema}}
+	plan := physicalplan.HashAggregateExec{
+		Input:         scan,
+		OutputSchema:  resultSchema,
+		GroupExpr:     []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
+		AggregateExpr: []physicalplan.AggregateExpr{physicalplan.AvgExpr{Expr: physicalplan.ColumnExpr{Index: 1}}},
+	}
+
+	got, err := BuildStages(plan)
+	if err != nil {
+		t.Fatalf("BuildStages() returned an error: %v", err)
+	}
+
+	want := []Stage{
+		{
+			ID: 0,
+			Plan: ExchangeWriteExec{
+				KeyIndex: 0,
+				Input: physicalplan.HashAggregateExec{
+					Input:         scan,
+					Mode:          physicalplan.AggregatePartial,
+					OutputSchema:  partialSchema,
+					GroupExpr:     []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
+					AggregateExpr: []physicalplan.AggregateExpr{physicalplan.AvgExpr{Expr: physicalplan.ColumnExpr{Index: 1}}},
+				},
+			},
+		},
+		{
+			ID: 1, Dependencies: []int{0},
+			Plan: physicalplan.HashAggregateExec{
+				Input:        ExchangeReadExec{StageID: 0, OutputSchema: partialSchema},
+				Mode:         physicalplan.AggregateFinal,
+				OutputSchema: resultSchema,
+				GroupExpr:    []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
+				AggregateExpr: []physicalplan.AggregateExpr{physicalplan.AvgExpr{
+					Expr:      physicalplan.ColumnExpr{Index: 1},
+					CountExpr: physicalplan.ColumnExpr{Index: 2},
+				}},
+			},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("BuildStages() = %#v; want %#v", got, want)
+	}
+}

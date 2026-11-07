@@ -122,6 +122,55 @@ func (JoinType) EnumDescriptor() ([]byte, []int) {
 	return file_planserde_plan_proto_rawDescGZIP(), []int{1}
 }
 
+type AggregateMode int32
+
+const (
+	AggregateMode_COMPLETE AggregateMode = 0
+	AggregateMode_PARTIAL  AggregateMode = 1
+	AggregateMode_FINAL    AggregateMode = 2
+)
+
+// Enum value maps for AggregateMode.
+var (
+	AggregateMode_name = map[int32]string{
+		0: "COMPLETE",
+		1: "PARTIAL",
+		2: "FINAL",
+	}
+	AggregateMode_value = map[string]int32{
+		"COMPLETE": 0,
+		"PARTIAL":  1,
+		"FINAL":    2,
+	}
+)
+
+func (x AggregateMode) Enum() *AggregateMode {
+	p := new(AggregateMode)
+	*p = x
+	return p
+}
+
+func (x AggregateMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AggregateMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_planserde_plan_proto_enumTypes[2].Descriptor()
+}
+
+func (AggregateMode) Type() protoreflect.EnumType {
+	return &file_planserde_plan_proto_enumTypes[2]
+}
+
+func (x AggregateMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AggregateMode.Descriptor instead.
+func (AggregateMode) EnumDescriptor() ([]byte, []int) {
+	return file_planserde_plan_proto_rawDescGZIP(), []int{2}
+}
+
 type Plan struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Node:
@@ -812,6 +861,7 @@ type AggregateExpression struct {
 	//
 	//	*AggregateExpression_Avg
 	Node          isAggregateExpression_Node `protobuf_oneof:"node"`
+	CountExpr     *Expression                `protobuf:"bytes,2,opt,name=count_expr,json=countExpr,proto3" json:"count_expr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -862,6 +912,13 @@ func (x *AggregateExpression) GetAvg() *Expression {
 	return nil
 }
 
+func (x *AggregateExpression) GetCountExpr() *Expression {
+	if x != nil {
+		return x.CountExpr
+	}
+	return nil
+}
+
 type isAggregateExpression_Node interface {
 	isAggregateExpression_Node()
 }
@@ -878,6 +935,7 @@ type HashAggregate struct {
 	OutputSchema         *Schema                `protobuf:"bytes,2,opt,name=output_schema,json=outputSchema,proto3" json:"output_schema,omitempty"`
 	GroupExpressions     []*Expression          `protobuf:"bytes,3,rep,name=group_expressions,json=groupExpressions,proto3" json:"group_expressions,omitempty"`
 	AggregateExpressions []*AggregateExpression `protobuf:"bytes,4,rep,name=aggregate_expressions,json=aggregateExpressions,proto3" json:"aggregate_expressions,omitempty"`
+	Mode                 AggregateMode          `protobuf:"varint,5,opt,name=mode,proto3,enum=queng.plan.AggregateMode" json:"mode,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -938,6 +996,13 @@ func (x *HashAggregate) GetAggregateExpressions() []*AggregateExpression {
 		return x.AggregateExpressions
 	}
 	return nil
+}
+
+func (x *HashAggregate) GetMode() AggregateMode {
+	if x != nil {
+		return x.Mode
+	}
+	return AggregateMode_COMPLETE
 }
 
 type ExchangeWrite struct {
@@ -1106,15 +1171,18 @@ const file_planserde_plan_proto_rawDesc = "" +
 	"\tleft_keys\x18\x04 \x03(\x03R\bleftKeys\x12\x1d\n" +
 	"\n" +
 	"right_keys\x18\x05 \x03(\x03R\trightKeys\x12(\n" +
-	"\x04type\x18\x06 \x01(\x0e2\x14.queng.plan.JoinTypeR\x04type\"I\n" +
+	"\x04type\x18\x06 \x01(\x0e2\x14.queng.plan.JoinTypeR\x04type\"\x80\x01\n" +
 	"\x13AggregateExpression\x12*\n" +
-	"\x03avg\x18\x01 \x01(\v2\x16.queng.plan.ExpressionH\x00R\x03avgB\x06\n" +
-	"\x04node\"\x8b\x02\n" +
+	"\x03avg\x18\x01 \x01(\v2\x16.queng.plan.ExpressionH\x00R\x03avg\x125\n" +
+	"\n" +
+	"count_expr\x18\x02 \x01(\v2\x16.queng.plan.ExpressionR\tcountExprB\x06\n" +
+	"\x04node\"\xba\x02\n" +
 	"\rHashAggregate\x12&\n" +
 	"\x05input\x18\x01 \x01(\v2\x10.queng.plan.PlanR\x05input\x127\n" +
 	"\routput_schema\x18\x02 \x01(\v2\x12.queng.plan.SchemaR\foutputSchema\x12C\n" +
 	"\x11group_expressions\x18\x03 \x03(\v2\x16.queng.plan.ExpressionR\x10groupExpressions\x12T\n" +
-	"\x15aggregate_expressions\x18\x04 \x03(\v2\x1f.queng.plan.AggregateExpressionR\x14aggregateExpressions\"o\n" +
+	"\x15aggregate_expressions\x18\x04 \x03(\v2\x1f.queng.plan.AggregateExpressionR\x14aggregateExpressions\x12-\n" +
+	"\x04mode\x18\x05 \x01(\x0e2\x19.queng.plan.AggregateModeR\x04mode\"o\n" +
 	"\rExchangeWrite\x12&\n" +
 	"\x05input\x18\x01 \x01(\v2\x10.queng.plan.PlanR\x05input\x12\x19\n" +
 	"\bstage_id\x18\x02 \x01(\x03R\astageId\x12\x1b\n" +
@@ -1131,7 +1199,11 @@ const file_planserde_plan_proto_rawDesc = "" +
 	"\x04BOOL\x10\x04*/\n" +
 	"\bJoinType\x12\x19\n" +
 	"\x15JOIN_TYPE_UNSPECIFIED\x10\x00\x12\b\n" +
-	"\x04LEFT\x10\x01B+Z)github.com/gabrielelanaro/queng/planserdeb\x06proto3"
+	"\x04LEFT\x10\x01*5\n" +
+	"\rAggregateMode\x12\f\n" +
+	"\bCOMPLETE\x10\x00\x12\v\n" +
+	"\aPARTIAL\x10\x01\x12\t\n" +
+	"\x05FINAL\x10\x02B+Z)github.com/gabrielelanaro/queng/planserdeb\x06proto3"
 
 var (
 	file_planserde_plan_proto_rawDescOnce sync.Once
@@ -1145,60 +1217,63 @@ func file_planserde_plan_proto_rawDescGZIP() []byte {
 	return file_planserde_plan_proto_rawDescData
 }
 
-var file_planserde_plan_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_planserde_plan_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_planserde_plan_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_planserde_plan_proto_goTypes = []any{
 	(DataType)(0),               // 0: queng.plan.DataType
 	(JoinType)(0),               // 1: queng.plan.JoinType
-	(*Plan)(nil),                // 2: queng.plan.Plan
-	(*Schema)(nil),              // 3: queng.plan.Schema
-	(*Field)(nil),               // 4: queng.plan.Field
-	(*CsvSource)(nil),           // 5: queng.plan.CsvSource
-	(*ParquetSource)(nil),       // 6: queng.plan.ParquetSource
-	(*Scan)(nil),                // 7: queng.plan.Scan
-	(*Expression)(nil),          // 8: queng.plan.Expression
-	(*Column)(nil),              // 9: queng.plan.Column
-	(*Projection)(nil),          // 10: queng.plan.Projection
-	(*HashJoin)(nil),            // 11: queng.plan.HashJoin
-	(*AggregateExpression)(nil), // 12: queng.plan.AggregateExpression
-	(*HashAggregate)(nil),       // 13: queng.plan.HashAggregate
-	(*ExchangeWrite)(nil),       // 14: queng.plan.ExchangeWrite
-	(*ExchangeRead)(nil),        // 15: queng.plan.ExchangeRead
+	(AggregateMode)(0),          // 2: queng.plan.AggregateMode
+	(*Plan)(nil),                // 3: queng.plan.Plan
+	(*Schema)(nil),              // 4: queng.plan.Schema
+	(*Field)(nil),               // 5: queng.plan.Field
+	(*CsvSource)(nil),           // 6: queng.plan.CsvSource
+	(*ParquetSource)(nil),       // 7: queng.plan.ParquetSource
+	(*Scan)(nil),                // 8: queng.plan.Scan
+	(*Expression)(nil),          // 9: queng.plan.Expression
+	(*Column)(nil),              // 10: queng.plan.Column
+	(*Projection)(nil),          // 11: queng.plan.Projection
+	(*HashJoin)(nil),            // 12: queng.plan.HashJoin
+	(*AggregateExpression)(nil), // 13: queng.plan.AggregateExpression
+	(*HashAggregate)(nil),       // 14: queng.plan.HashAggregate
+	(*ExchangeWrite)(nil),       // 15: queng.plan.ExchangeWrite
+	(*ExchangeRead)(nil),        // 16: queng.plan.ExchangeRead
 }
 var file_planserde_plan_proto_depIdxs = []int32{
-	7,  // 0: queng.plan.Plan.scan:type_name -> queng.plan.Scan
-	10, // 1: queng.plan.Plan.projection:type_name -> queng.plan.Projection
-	11, // 2: queng.plan.Plan.hash_join:type_name -> queng.plan.HashJoin
-	13, // 3: queng.plan.Plan.hash_aggregate:type_name -> queng.plan.HashAggregate
-	14, // 4: queng.plan.Plan.exchange_write:type_name -> queng.plan.ExchangeWrite
-	15, // 5: queng.plan.Plan.exchange_read:type_name -> queng.plan.ExchangeRead
-	4,  // 6: queng.plan.Schema.fields:type_name -> queng.plan.Field
+	8,  // 0: queng.plan.Plan.scan:type_name -> queng.plan.Scan
+	11, // 1: queng.plan.Plan.projection:type_name -> queng.plan.Projection
+	12, // 2: queng.plan.Plan.hash_join:type_name -> queng.plan.HashJoin
+	14, // 3: queng.plan.Plan.hash_aggregate:type_name -> queng.plan.HashAggregate
+	15, // 4: queng.plan.Plan.exchange_write:type_name -> queng.plan.ExchangeWrite
+	16, // 5: queng.plan.Plan.exchange_read:type_name -> queng.plan.ExchangeRead
+	5,  // 6: queng.plan.Schema.fields:type_name -> queng.plan.Field
 	0,  // 7: queng.plan.Field.type:type_name -> queng.plan.DataType
-	3,  // 8: queng.plan.CsvSource.schema:type_name -> queng.plan.Schema
-	3,  // 9: queng.plan.ParquetSource.schema:type_name -> queng.plan.Schema
-	5,  // 10: queng.plan.Scan.csv:type_name -> queng.plan.CsvSource
-	3,  // 11: queng.plan.Scan.output_schema:type_name -> queng.plan.Schema
-	6,  // 12: queng.plan.Scan.parquet:type_name -> queng.plan.ParquetSource
-	9,  // 13: queng.plan.Expression.column:type_name -> queng.plan.Column
-	2,  // 14: queng.plan.Projection.input:type_name -> queng.plan.Plan
-	3,  // 15: queng.plan.Projection.output_schema:type_name -> queng.plan.Schema
-	8,  // 16: queng.plan.Projection.expressions:type_name -> queng.plan.Expression
-	2,  // 17: queng.plan.HashJoin.left:type_name -> queng.plan.Plan
-	2,  // 18: queng.plan.HashJoin.right:type_name -> queng.plan.Plan
-	3,  // 19: queng.plan.HashJoin.output_schema:type_name -> queng.plan.Schema
+	4,  // 8: queng.plan.CsvSource.schema:type_name -> queng.plan.Schema
+	4,  // 9: queng.plan.ParquetSource.schema:type_name -> queng.plan.Schema
+	6,  // 10: queng.plan.Scan.csv:type_name -> queng.plan.CsvSource
+	4,  // 11: queng.plan.Scan.output_schema:type_name -> queng.plan.Schema
+	7,  // 12: queng.plan.Scan.parquet:type_name -> queng.plan.ParquetSource
+	10, // 13: queng.plan.Expression.column:type_name -> queng.plan.Column
+	3,  // 14: queng.plan.Projection.input:type_name -> queng.plan.Plan
+	4,  // 15: queng.plan.Projection.output_schema:type_name -> queng.plan.Schema
+	9,  // 16: queng.plan.Projection.expressions:type_name -> queng.plan.Expression
+	3,  // 17: queng.plan.HashJoin.left:type_name -> queng.plan.Plan
+	3,  // 18: queng.plan.HashJoin.right:type_name -> queng.plan.Plan
+	4,  // 19: queng.plan.HashJoin.output_schema:type_name -> queng.plan.Schema
 	1,  // 20: queng.plan.HashJoin.type:type_name -> queng.plan.JoinType
-	8,  // 21: queng.plan.AggregateExpression.avg:type_name -> queng.plan.Expression
-	2,  // 22: queng.plan.HashAggregate.input:type_name -> queng.plan.Plan
-	3,  // 23: queng.plan.HashAggregate.output_schema:type_name -> queng.plan.Schema
-	8,  // 24: queng.plan.HashAggregate.group_expressions:type_name -> queng.plan.Expression
-	12, // 25: queng.plan.HashAggregate.aggregate_expressions:type_name -> queng.plan.AggregateExpression
-	2,  // 26: queng.plan.ExchangeWrite.input:type_name -> queng.plan.Plan
-	3,  // 27: queng.plan.ExchangeRead.output_schema:type_name -> queng.plan.Schema
-	28, // [28:28] is the sub-list for method output_type
-	28, // [28:28] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	9,  // 21: queng.plan.AggregateExpression.avg:type_name -> queng.plan.Expression
+	9,  // 22: queng.plan.AggregateExpression.count_expr:type_name -> queng.plan.Expression
+	3,  // 23: queng.plan.HashAggregate.input:type_name -> queng.plan.Plan
+	4,  // 24: queng.plan.HashAggregate.output_schema:type_name -> queng.plan.Schema
+	9,  // 25: queng.plan.HashAggregate.group_expressions:type_name -> queng.plan.Expression
+	13, // 26: queng.plan.HashAggregate.aggregate_expressions:type_name -> queng.plan.AggregateExpression
+	2,  // 27: queng.plan.HashAggregate.mode:type_name -> queng.plan.AggregateMode
+	3,  // 28: queng.plan.ExchangeWrite.input:type_name -> queng.plan.Plan
+	4,  // 29: queng.plan.ExchangeRead.output_schema:type_name -> queng.plan.Schema
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_planserde_plan_proto_init() }
@@ -1225,7 +1300,7 @@ func file_planserde_plan_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_planserde_plan_proto_rawDesc), len(file_planserde_plan_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,

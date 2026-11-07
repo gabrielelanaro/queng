@@ -165,19 +165,27 @@ func (a HashAggregateExec) processBatch(batch datasource.RecordBatch, groups *gr
 	if err != nil {
 		return err
 	}
-	inputs := make([]PhysicalExpr, 0, len(a.AggregateExpr))
+	aggregateColumns := make([][]datasource.ColumnVector, 0, len(a.AggregateExpr))
 	for _, expr := range a.AggregateExpr {
-		inputs = append(inputs, expr.InputExpression())
-	}
-	aggregateColumns, err := evaluateExpressions(inputs, batch)
-	if err != nil {
-		return err
+		inputs := []PhysicalExpr{expr.InputExpression()}
+		if a.Mode == AggregateFinal {
+			avg, ok := expr.(AvgExpr)
+			if !ok || avg.CountExpr == nil {
+				return fmt.Errorf("final average requires sum and count expressions")
+			}
+			inputs = append(inputs, avg.CountExpr)
+		}
+		columns, err := evaluateExpressions(inputs, batch)
+		if err != nil {
+			return err
+		}
+		aggregateColumns = append(aggregateColumns, columns)
 	}
 	rows := 0
 	if batch.ColumnCount() > 0 {
 		rows = batch.Column(0).Len()
 	}
-	return processRows(rows, groupColumns, aggregateColumns, groups)
+	return processRows(rows, groupColumns, aggregateColumns, groups, a.Mode)
 }
 
 func evaluateExpressions(exprs []PhysicalExpr, batch datasource.RecordBatch) ([]datasource.ColumnVector, error) {
@@ -192,22 +200,30 @@ func evaluateExpressions(exprs []PhysicalExpr, batch datasource.RecordBatch) ([]
 	return columns, nil
 }
 
-func processRows(rows int, groupColumns, aggregateColumns []datasource.ColumnVector, groups *groupTable) error {
+func processRows(rows int, groupColumns []datasource.ColumnVector, aggregateColumns [][]datasource.ColumnVector, groups *groupTable, mode AggregateMode) error {
 	for row := 0; row < rows; row++ {
 		group, err := groups.findOrCreateGroup(groupColumns, row)
 		if err != nil {
 			return err
 		}
-		if err := accumulateRow(group, aggregateColumns, row); err != nil {
+		if err := accumulateRow(group, aggregateColumns, row, mode); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func accumulateRow(group *aggregateGroup, columns []datasource.ColumnVector, row int) error {
+func accumulateRow(group *aggregateGroup, columns [][]datasource.ColumnVector, row int, mode AggregateMode) error {
 	for i, accumulator := range group.accumulators {
-		if err := accumulator.Accumulate(columns[i].Value(row)); err != nil {
+		if mode == AggregateFinal {
+			state := make([]any, len(columns[i]))
+			for j, column := range columns[i] {
+				state[j] = column.Value(row)
+			}
+			if err := accumulator.Merge(state); err != nil {
+				return err
+			}
+		} else if err := accumulator.Accumulate(columns[i][0].Value(row)); err != nil {
 			return err
 		}
 	}
@@ -215,14 +231,22 @@ func accumulateRow(group *aggregateGroup, columns []datasource.ColumnVector, row
 }
 
 func (a HashAggregateExec) buildResultBatch(groups *groupTable) (datasource.RecordBatch, error) {
-	values := make([][]any, len(a.GroupExpr)+len(a.AggregateExpr))
+	values := make([][]any, len(a.OutputSchema.Fields))
 	for _, group := range groups.groups {
 		for i, key := range group.keys {
 			values[i] = append(values[i], key)
 		}
-		for i, accumulator := range group.accumulators {
-			index := len(a.GroupExpr) + i
-			values[index] = append(values[index], accumulator.FinalValue())
+		index := len(a.GroupExpr)
+		for _, accumulator := range group.accumulators {
+			if a.Mode == AggregatePartial {
+				for _, value := range accumulator.IntermediateValues() {
+					values[index] = append(values[index], value)
+					index++
+				}
+			} else {
+				values[index] = append(values[index], accumulator.FinalValue())
+				index++
+			}
 		}
 	}
 	var columns []datasource.ColumnVector
