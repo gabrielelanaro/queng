@@ -7,6 +7,8 @@ import (
 	"io"
 	"iter"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/gabrielelanaro/queng/batchserde"
 	"github.com/gabrielelanaro/queng/coordinator"
 	"github.com/gabrielelanaro/queng/datasource"
@@ -45,6 +47,7 @@ func (e *Exchange) ReadPartition(parent context.Context, jobID string, stageID, 
 			yield(datasource.RecordBatch{}, fmt.Errorf("get producer locations: %w", err))
 			return
 		}
+		log.Info().Str("job", jobID).Int("stage", stageID).Int("partition", partitionID).Int("producers", len(result.Locations)).Msg("fetching shuffle partition")
 		for _, location := range result.Locations {
 			if !e.readProducer(ctx, location, jobID, stageID, partitionID, yield) {
 				return

@@ -1,0 +1,21 @@
+services:
+  coordinator:
+    image: localhost/queng:dev
+    build: .
+    command: ["queng-coordinator", "--workers=worker-a:9001,worker-b:9001", "--table=sales=/data/sales.csv", "--table=products=/data/products.csv"]
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./samples:/data:ro
+
+  worker-a:
+    image: localhost/queng:dev
+    command: ["queng-worker", "--listen=:9001", "--coordinator=coordinator:9000"]
+    volumes:
+      - ./samples:/data:ro
+
+  worker-b:
+    image: localhost/queng:dev
+    command: ["queng-worker", "--listen=:9001", "--coordinator=coordinator:9000"]
+    volumes:
+      - ./samples:/data:ro

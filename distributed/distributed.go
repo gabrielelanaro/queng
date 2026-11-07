@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"hash/fnv"
 	"iter"
+
+	"github.com/rs/zerolog/log"
 	"math"
 
 	"github.com/gabrielelanaro/queng/datasource"
@@ -83,6 +85,7 @@ func (e ExchangeWrite) writeBatch(ctx execution.Context, batch datasource.Record
 		if err != nil {
 			return err
 		}
+		log.Info().Str("job", ctx.JobID).Int("stage", e.StageID).Int("task", ctx.TaskID).Int("partition", partitionID).Int("rows", len(rows)).Msg("shuffle batch written")
 	}
 	return nil
 }

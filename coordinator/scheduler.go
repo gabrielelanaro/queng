@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"maps"
 	"sort"
+	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/distributed"
@@ -127,12 +130,15 @@ func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distribute
 	if err != nil {
 		return nil, fmt.Errorf("stage %d: %w", stage.ID, err)
 	}
+	started := time.Now()
+	log.Info().Str("job", jobID).Int("stage", stage.ID).Int("tasks", count).Msg("stage started")
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	results := make(chan taskResult, count)
 	for partition := range count {
 		address := addresses[partition%len(addresses)]
 		go func(partition int, address string) {
+			log.Info().Str("job", jobID).Int("stage", stage.ID).Int("task", partition).Str("worker", address).Msg("task submitted")
 			task := executor.Task{JobID: jobID, ID: partition, PartitionID: partition, Stage: stage}
 			response := <-s.workers[address].Submit(ctx, task)
 			results <- taskResult{taskID: partition, address: address, batches: response.Batches, err: response.Err}
@@ -154,6 +160,7 @@ func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distribute
 		for _, batch := range batches {
 			batch.Release()
 		}
+		log.Error().Err(firstErr).Str("job", jobID).Int("stage", stage.ID).Msg("stage failed")
 		return nil, fmt.Errorf("stage %d: %w", stage.ID, firstErr)
 	}
 	if _, ok := stage.Plan.(distributed.ExchangeWrite); ok {
@@ -161,6 +168,7 @@ func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distribute
 			s.tracker.Track(jobID, stage.ID, OutputLocation{TaskID: result.taskID, WorkerAddress: result.address})
 		}
 	}
+	log.Info().Str("job", jobID).Int("stage", stage.ID).Dur("duration", time.Since(started)).Msg("stage completed")
 	return batches, nil
 }
 

@@ -3,6 +3,9 @@ package worker
 
 import (
 	"context"
+	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/gabrielelanaro/queng/batchserde"
 	"github.com/gabrielelanaro/queng/distributed"
@@ -21,6 +24,8 @@ type Server struct {
 }
 
 func (s *Server) RunTask(ctx context.Context, request *workerapi.TaskRequest) (*workerapi.TaskResult, error) {
+	started := time.Now()
+	log.Info().Str("job", request.GetJobId()).Int64("task", request.GetTaskId()).Int64("partition", request.GetPartitionId()).Msg("task started")
 	if request.GetShufflePartitions() < 1 {
 		return nil, status.Error(codes.InvalidArgument, "shuffle partition count must be positive")
 	}
@@ -32,6 +37,7 @@ func (s *Server) RunTask(ctx context.Context, request *workerapi.TaskRequest) (*
 	task := executor.Task{JobID: request.GetJobId(), ID: int(request.GetTaskId()), PartitionID: int(request.GetPartitionId()), Stage: distributed.Stage{Plan: plan}}
 	result := <-localExecutor.Submit(ctx, task)
 	if result.Err != nil {
+		log.Error().Err(result.Err).Str("job", request.GetJobId()).Int64("task", request.GetTaskId()).Msg("task failed")
 		return nil, status.Errorf(codes.Internal, "execute task: %v", result.Err)
 	}
 	response := &workerapi.TaskResult{}
@@ -45,6 +51,7 @@ func (s *Server) RunTask(ctx context.Context, request *workerapi.TaskRequest) (*
 		}
 		response.Batches = append(response.Batches, data)
 	}
+	log.Info().Str("job", request.GetJobId()).Int64("task", request.GetTaskId()).Dur("duration", time.Since(started)).Msg("task completed")
 	return response, nil
 }
 
@@ -57,6 +64,7 @@ func (s *Server) ReadPartition(request *workerapi.PartitionRequest, stream worke
 		JobID: request.GetJobId(), StageID: int(request.GetStageId()),
 		TaskID: int(request.GetTaskId()), PartitionID: int(request.GetPartitionId()),
 	}
+	log.Info().Str("job", key.JobID).Int("stage", key.StageID).Int("task", key.TaskID).Int("partition", key.PartitionID).Msg("serving shuffle partition")
 	for batch, err := range s.Exchange.Read(key) {
 		if err != nil {
 			return status.Errorf(codes.Internal, "read exchange: %v", err)
