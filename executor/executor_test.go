@@ -21,7 +21,7 @@ func (s executorTestSource) Schema() datasource.Schema { return s.batch.Schema }
 
 func (s executorTestSource) PartitionCount() int { return 1 }
 
-func (s executorTestSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (s executorTestSource) Scan(partitionID int, columns []int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		s.batch.Retain()
 		yield(s.batch, nil)
@@ -110,7 +110,7 @@ func (partitionedSource) Schema() datasource.Schema {
 
 func (partitionedSource) PartitionCount() int { return 2 }
 
-func (s partitionedSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (s partitionedSource) Scan(partitionID int, columns []int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		column, err := datasource.NewArrowColumn(arrow.PrimitiveTypes.Int64, []any{int64(partitionID)})
 		if err != nil {

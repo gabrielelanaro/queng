@@ -26,7 +26,7 @@ func (s ownedBatchSource) Schema() datasource.Schema { return s.batch.Schema }
 
 func (s ownedBatchSource) PartitionCount() int { return 1 }
 
-func (s ownedBatchSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (s ownedBatchSource) Scan(partitionID int, columns []int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		yield(s.batch, nil)
 	}
@@ -62,10 +62,22 @@ func (s batchesSource) Schema() datasource.Schema { return s.schema }
 // Each yielded batch owns references that the consumer must release.
 func (s batchesSource) PartitionCount() int { return 1 }
 
-func (s batchesSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (s batchesSource) Scan(partitionID int, columns []int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		for _, batch := range s.batches {
-			batch.Retain()
+			if columns != nil {
+				var fields []datasource.Field
+				var selected []datasource.ColumnVector
+				for _, index := range columns {
+					fields = append(fields, batch.Schema.Fields[index])
+					column := batch.Column(index)
+					column.Retain()
+					selected = append(selected, column)
+				}
+				batch = datasource.NewRecordBatch(datasource.Schema{Fields: fields}, selected)
+			} else {
+				batch.Retain()
+			}
 			if !yield(batch, nil) {
 				return
 			}
@@ -249,4 +261,35 @@ func TestHashJoinExecRejectsMultipleKeys(t *testing.T) {
 		return
 	}
 	t.Fatal("Execute() did not report an error for multiple join keys")
+}
+
+func TestScanExecReturnsSelectedColumnsWithQualifiedSchema(t *testing.T) {
+	schema := datasource.Schema{Fields: []datasource.Field{
+		{Name: "quantity", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "price", Type: arrow.PrimitiveTypes.Float64},
+	}}
+	source := batchesSource{schema: schema, batches: []datasource.RecordBatch{
+		makeBatch(t, schema, []any{int64(2)}, []any{9.5}),
+	}}
+	output := datasource.Schema{Fields: []datasource.Field{
+		{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Float64},
+	}}
+	plan := physicalplan.ScanExec{Source: source, Columns: []int{1}, OutputSchema: output}
+	var values []any
+	for batch, err := range plan.Execute(execution.Context{}, 0) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		if batch.ColumnCount() != 1 || !reflect.DeepEqual(batch.Schema, output) {
+			batch.Release()
+			t.Fatal("scan did not return the selected column with its qualified schema")
+		}
+		for row := range batch.Column(0).Len() {
+			values = append(values, batch.Column(0).Value(row))
+		}
+		batch.Release()
+	}
+	if !reflect.DeepEqual(values, []any{9.5}) {
+		t.Errorf("selected values = %v; want [9.5]", values)
+	}
 }

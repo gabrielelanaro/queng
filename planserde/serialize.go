@@ -28,6 +28,12 @@ func SerializePlan(plan physicalplan.PhysicalPlan) (*Plan, error) {
 			}
 		}
 		scan := &Scan{OutputSchema: output}
+		if p.Columns != nil {
+			scan.Selection = &ColumnSelection{Indices: make([]int64, len(p.Columns))}
+			for i, index := range p.Columns {
+				scan.Selection.Indices[i] = int64(index)
+			}
+		}
 		switch source := p.Source.(type) {
 		case *datasource.CSVSource:
 			scan.Csv = &CsvSource{Path: source.Path(), BatchSize: int64(source.BatchSize()), Schema: sourceSchema}
@@ -220,7 +226,14 @@ func DeserializePlan(plan *Plan) (physicalplan.PhysicalPlan, error) {
 				return nil, err
 			}
 		}
-		return physicalplan.ScanExec{Source: source, OutputSchema: output}, nil
+		var columns []int
+		if p.Scan.Selection != nil {
+			columns = make([]int, len(p.Scan.Selection.Indices))
+			for i, index := range p.Scan.Selection.Indices {
+				columns[i] = int(index)
+			}
+		}
+		return physicalplan.ScanExec{Source: source, OutputSchema: output, Columns: columns}, nil
 	case *Plan_Projection:
 		if p.Projection == nil {
 			return nil, fmt.Errorf("missing projection")

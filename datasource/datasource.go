@@ -89,8 +89,35 @@ func (b RecordBatch) Release() {
 
 // DataSource provides the schema and batches of a table. Each batch yielded by
 // Scan transfers its column references to the consumer, which must release it.
+// Columns are unique source positions in output order; nil selects all columns.
 type DataSource interface {
 	Schema() Schema
 	PartitionCount() int
-	Scan(partitionID int) iter.Seq2[RecordBatch, error]
+	Scan(partitionID int, columns []int) iter.Seq2[RecordBatch, error]
+}
+
+// scanColumns validates the selection and constructs its output schema.
+func scanColumns(schema Schema, columns []int) (Schema, []int, error) {
+	if columns == nil {
+		columns = make([]int, len(schema.Fields))
+		for i := range columns {
+			columns[i] = i
+		}
+	}
+	if len(columns) == 0 {
+		return Schema{}, nil, fmt.Errorf("scan requires at least one column")
+	}
+	fields := make([]Field, len(columns))
+	seen := make(map[int]bool)
+	for i, index := range columns {
+		if index < 0 || index >= len(schema.Fields) {
+			return Schema{}, nil, fmt.Errorf("scan column index %d out of range", index)
+		}
+		if seen[index] {
+			return Schema{}, nil, fmt.Errorf("duplicate scan column index %d", index)
+		}
+		seen[index] = true
+		fields[i] = schema.Fields[index]
+	}
+	return Schema{Fields: fields}, columns, nil
 }

@@ -17,7 +17,7 @@ type exchangeTestSource struct{ batch datasource.RecordBatch }
 
 func (s exchangeTestSource) Schema() datasource.Schema { return s.batch.Schema }
 func (s exchangeTestSource) PartitionCount() int       { return 1 }
-func (s exchangeTestSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (s exchangeTestSource) Scan(partitionID int, columns []int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		s.batch.Retain()
 		yield(s.batch, nil)

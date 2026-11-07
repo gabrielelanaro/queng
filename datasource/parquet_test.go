@@ -50,7 +50,7 @@ func TestParquetSourceReadsEachRowGroupAsPartition(t *testing.T) {
 	var partitions [][]any
 	for partition := range source.PartitionCount() {
 		var values []any
-		for batch, err := range source.Scan(partition) {
+		for batch, err := range source.Scan(partition, nil) {
 			if err != nil {
 				t.Fatal(err)
 			}

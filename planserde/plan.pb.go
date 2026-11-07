@@ -541,18 +541,63 @@ func (x *ParquetSource) GetRowGroups() int64 {
 	return 0
 }
 
+type ColumnSelection struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Indices       []int64                `protobuf:"varint,1,rep,packed,name=indices,proto3" json:"indices,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ColumnSelection) Reset() {
+	*x = ColumnSelection{}
+	mi := &file_planserde_plan_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ColumnSelection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ColumnSelection) ProtoMessage() {}
+
+func (x *ColumnSelection) ProtoReflect() protoreflect.Message {
+	mi := &file_planserde_plan_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ColumnSelection.ProtoReflect.Descriptor instead.
+func (*ColumnSelection) Descriptor() ([]byte, []int) {
+	return file_planserde_plan_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ColumnSelection) GetIndices() []int64 {
+	if x != nil {
+		return x.Indices
+	}
+	return nil
+}
+
 type Scan struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Csv           *CsvSource             `protobuf:"bytes,1,opt,name=csv,proto3" json:"csv,omitempty"`
 	OutputSchema  *Schema                `protobuf:"bytes,2,opt,name=output_schema,json=outputSchema,proto3" json:"output_schema,omitempty"`
 	Parquet       *ParquetSource         `protobuf:"bytes,3,opt,name=parquet,proto3" json:"parquet,omitempty"`
+	Selection     *ColumnSelection       `protobuf:"bytes,4,opt,name=selection,proto3" json:"selection,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Scan) Reset() {
 	*x = Scan{}
-	mi := &file_planserde_plan_proto_msgTypes[5]
+	mi := &file_planserde_plan_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -564,7 +609,7 @@ func (x *Scan) String() string {
 func (*Scan) ProtoMessage() {}
 
 func (x *Scan) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[5]
+	mi := &file_planserde_plan_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -577,7 +622,7 @@ func (x *Scan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Scan.ProtoReflect.Descriptor instead.
 func (*Scan) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{5}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Scan) GetCsv() *CsvSource {
@@ -601,6 +646,13 @@ func (x *Scan) GetParquet() *ParquetSource {
 	return nil
 }
 
+func (x *Scan) GetSelection() *ColumnSelection {
+	if x != nil {
+		return x.Selection
+	}
+	return nil
+}
+
 type Expression struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Node:
@@ -613,7 +665,7 @@ type Expression struct {
 
 func (x *Expression) Reset() {
 	*x = Expression{}
-	mi := &file_planserde_plan_proto_msgTypes[6]
+	mi := &file_planserde_plan_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -625,7 +677,7 @@ func (x *Expression) String() string {
 func (*Expression) ProtoMessage() {}
 
 func (x *Expression) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[6]
+	mi := &file_planserde_plan_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -638,7 +690,7 @@ func (x *Expression) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Expression.ProtoReflect.Descriptor instead.
 func (*Expression) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{6}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Expression) GetNode() isExpression_Node {
@@ -676,7 +728,7 @@ type Column struct {
 
 func (x *Column) Reset() {
 	*x = Column{}
-	mi := &file_planserde_plan_proto_msgTypes[7]
+	mi := &file_planserde_plan_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -688,7 +740,7 @@ func (x *Column) String() string {
 func (*Column) ProtoMessage() {}
 
 func (x *Column) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[7]
+	mi := &file_planserde_plan_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -701,7 +753,7 @@ func (x *Column) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Column.ProtoReflect.Descriptor instead.
 func (*Column) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{7}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Column) GetIndex() int64 {
@@ -722,7 +774,7 @@ type Projection struct {
 
 func (x *Projection) Reset() {
 	*x = Projection{}
-	mi := &file_planserde_plan_proto_msgTypes[8]
+	mi := &file_planserde_plan_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -734,7 +786,7 @@ func (x *Projection) String() string {
 func (*Projection) ProtoMessage() {}
 
 func (x *Projection) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[8]
+	mi := &file_planserde_plan_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -747,7 +799,7 @@ func (x *Projection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Projection.ProtoReflect.Descriptor instead.
 func (*Projection) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{8}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Projection) GetInput() *Plan {
@@ -785,7 +837,7 @@ type HashJoin struct {
 
 func (x *HashJoin) Reset() {
 	*x = HashJoin{}
-	mi := &file_planserde_plan_proto_msgTypes[9]
+	mi := &file_planserde_plan_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -797,7 +849,7 @@ func (x *HashJoin) String() string {
 func (*HashJoin) ProtoMessage() {}
 
 func (x *HashJoin) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[9]
+	mi := &file_planserde_plan_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -810,7 +862,7 @@ func (x *HashJoin) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HashJoin.ProtoReflect.Descriptor instead.
 func (*HashJoin) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{9}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *HashJoin) GetLeft() *Plan {
@@ -868,7 +920,7 @@ type AggregateExpression struct {
 
 func (x *AggregateExpression) Reset() {
 	*x = AggregateExpression{}
-	mi := &file_planserde_plan_proto_msgTypes[10]
+	mi := &file_planserde_plan_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -880,7 +932,7 @@ func (x *AggregateExpression) String() string {
 func (*AggregateExpression) ProtoMessage() {}
 
 func (x *AggregateExpression) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[10]
+	mi := &file_planserde_plan_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -893,7 +945,7 @@ func (x *AggregateExpression) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AggregateExpression.ProtoReflect.Descriptor instead.
 func (*AggregateExpression) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{10}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AggregateExpression) GetNode() isAggregateExpression_Node {
@@ -942,7 +994,7 @@ type HashAggregate struct {
 
 func (x *HashAggregate) Reset() {
 	*x = HashAggregate{}
-	mi := &file_planserde_plan_proto_msgTypes[11]
+	mi := &file_planserde_plan_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -954,7 +1006,7 @@ func (x *HashAggregate) String() string {
 func (*HashAggregate) ProtoMessage() {}
 
 func (x *HashAggregate) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[11]
+	mi := &file_planserde_plan_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -967,7 +1019,7 @@ func (x *HashAggregate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HashAggregate.ProtoReflect.Descriptor instead.
 func (*HashAggregate) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{11}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *HashAggregate) GetInput() *Plan {
@@ -1018,7 +1070,7 @@ type Partitioning struct {
 
 func (x *Partitioning) Reset() {
 	*x = Partitioning{}
-	mi := &file_planserde_plan_proto_msgTypes[12]
+	mi := &file_planserde_plan_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1030,7 +1082,7 @@ func (x *Partitioning) String() string {
 func (*Partitioning) ProtoMessage() {}
 
 func (x *Partitioning) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[12]
+	mi := &file_planserde_plan_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1043,7 +1095,7 @@ func (x *Partitioning) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Partitioning.ProtoReflect.Descriptor instead.
 func (*Partitioning) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{12}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Partitioning) GetStrategy() isPartitioning_Strategy {
@@ -1096,7 +1148,7 @@ type HashPartitioning struct {
 
 func (x *HashPartitioning) Reset() {
 	*x = HashPartitioning{}
-	mi := &file_planserde_plan_proto_msgTypes[13]
+	mi := &file_planserde_plan_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1108,7 +1160,7 @@ func (x *HashPartitioning) String() string {
 func (*HashPartitioning) ProtoMessage() {}
 
 func (x *HashPartitioning) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[13]
+	mi := &file_planserde_plan_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1121,7 +1173,7 @@ func (x *HashPartitioning) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HashPartitioning.ProtoReflect.Descriptor instead.
 func (*HashPartitioning) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{13}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *HashPartitioning) GetKeys() []int64 {
@@ -1139,7 +1191,7 @@ type SinglePartition struct {
 
 func (x *SinglePartition) Reset() {
 	*x = SinglePartition{}
-	mi := &file_planserde_plan_proto_msgTypes[14]
+	mi := &file_planserde_plan_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1151,7 +1203,7 @@ func (x *SinglePartition) String() string {
 func (*SinglePartition) ProtoMessage() {}
 
 func (x *SinglePartition) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[14]
+	mi := &file_planserde_plan_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1164,7 +1216,7 @@ func (x *SinglePartition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SinglePartition.ProtoReflect.Descriptor instead.
 func (*SinglePartition) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{14}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{15}
 }
 
 type ExchangeWrite struct {
@@ -1178,7 +1230,7 @@ type ExchangeWrite struct {
 
 func (x *ExchangeWrite) Reset() {
 	*x = ExchangeWrite{}
-	mi := &file_planserde_plan_proto_msgTypes[15]
+	mi := &file_planserde_plan_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1190,7 +1242,7 @@ func (x *ExchangeWrite) String() string {
 func (*ExchangeWrite) ProtoMessage() {}
 
 func (x *ExchangeWrite) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[15]
+	mi := &file_planserde_plan_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1203,7 +1255,7 @@ func (x *ExchangeWrite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExchangeWrite.ProtoReflect.Descriptor instead.
 func (*ExchangeWrite) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{15}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ExchangeWrite) GetInput() *Plan {
@@ -1238,7 +1290,7 @@ type ExchangeRead struct {
 
 func (x *ExchangeRead) Reset() {
 	*x = ExchangeRead{}
-	mi := &file_planserde_plan_proto_msgTypes[16]
+	mi := &file_planserde_plan_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1250,7 +1302,7 @@ func (x *ExchangeRead) String() string {
 func (*ExchangeRead) ProtoMessage() {}
 
 func (x *ExchangeRead) ProtoReflect() protoreflect.Message {
-	mi := &file_planserde_plan_proto_msgTypes[16]
+	mi := &file_planserde_plan_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1263,7 +1315,7 @@ func (x *ExchangeRead) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExchangeRead.ProtoReflect.Descriptor instead.
 func (*ExchangeRead) Descriptor() ([]byte, []int) {
-	return file_planserde_plan_proto_rawDescGZIP(), []int{16}
+	return file_planserde_plan_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ExchangeRead) GetStageId() int64 {
@@ -1318,11 +1370,14 @@ const file_planserde_plan_proto_rawDesc = "" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12*\n" +
 	"\x06schema\x18\x02 \x01(\v2\x12.queng.plan.SchemaR\x06schema\x12\x1d\n" +
 	"\n" +
-	"row_groups\x18\x03 \x01(\x03R\trowGroups\"\x9d\x01\n" +
+	"row_groups\x18\x03 \x01(\x03R\trowGroups\"+\n" +
+	"\x0fColumnSelection\x12\x18\n" +
+	"\aindices\x18\x01 \x03(\x03R\aindices\"\xd8\x01\n" +
 	"\x04Scan\x12'\n" +
 	"\x03csv\x18\x01 \x01(\v2\x15.queng.plan.CsvSourceR\x03csv\x127\n" +
 	"\routput_schema\x18\x02 \x01(\v2\x12.queng.plan.SchemaR\foutputSchema\x123\n" +
-	"\aparquet\x18\x03 \x01(\v2\x19.queng.plan.ParquetSourceR\aparquet\"B\n" +
+	"\aparquet\x18\x03 \x01(\v2\x19.queng.plan.ParquetSourceR\aparquet\x129\n" +
+	"\tselection\x18\x04 \x01(\v2\x1b.queng.plan.ColumnSelectionR\tselection\"B\n" +
 	"\n" +
 	"Expression\x12,\n" +
 	"\x06column\x18\x01 \x01(\v2\x12.queng.plan.ColumnH\x00R\x06columnB\x06\n" +
@@ -1397,7 +1452,7 @@ func file_planserde_plan_proto_rawDescGZIP() []byte {
 }
 
 var file_planserde_plan_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_planserde_plan_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_planserde_plan_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_planserde_plan_proto_goTypes = []any{
 	(DataType)(0),               // 0: queng.plan.DataType
 	(JoinType)(0),               // 1: queng.plan.JoinType
@@ -1407,26 +1462,27 @@ var file_planserde_plan_proto_goTypes = []any{
 	(*Field)(nil),               // 5: queng.plan.Field
 	(*CsvSource)(nil),           // 6: queng.plan.CsvSource
 	(*ParquetSource)(nil),       // 7: queng.plan.ParquetSource
-	(*Scan)(nil),                // 8: queng.plan.Scan
-	(*Expression)(nil),          // 9: queng.plan.Expression
-	(*Column)(nil),              // 10: queng.plan.Column
-	(*Projection)(nil),          // 11: queng.plan.Projection
-	(*HashJoin)(nil),            // 12: queng.plan.HashJoin
-	(*AggregateExpression)(nil), // 13: queng.plan.AggregateExpression
-	(*HashAggregate)(nil),       // 14: queng.plan.HashAggregate
-	(*Partitioning)(nil),        // 15: queng.plan.Partitioning
-	(*HashPartitioning)(nil),    // 16: queng.plan.HashPartitioning
-	(*SinglePartition)(nil),     // 17: queng.plan.SinglePartition
-	(*ExchangeWrite)(nil),       // 18: queng.plan.ExchangeWrite
-	(*ExchangeRead)(nil),        // 19: queng.plan.ExchangeRead
+	(*ColumnSelection)(nil),     // 8: queng.plan.ColumnSelection
+	(*Scan)(nil),                // 9: queng.plan.Scan
+	(*Expression)(nil),          // 10: queng.plan.Expression
+	(*Column)(nil),              // 11: queng.plan.Column
+	(*Projection)(nil),          // 12: queng.plan.Projection
+	(*HashJoin)(nil),            // 13: queng.plan.HashJoin
+	(*AggregateExpression)(nil), // 14: queng.plan.AggregateExpression
+	(*HashAggregate)(nil),       // 15: queng.plan.HashAggregate
+	(*Partitioning)(nil),        // 16: queng.plan.Partitioning
+	(*HashPartitioning)(nil),    // 17: queng.plan.HashPartitioning
+	(*SinglePartition)(nil),     // 18: queng.plan.SinglePartition
+	(*ExchangeWrite)(nil),       // 19: queng.plan.ExchangeWrite
+	(*ExchangeRead)(nil),        // 20: queng.plan.ExchangeRead
 }
 var file_planserde_plan_proto_depIdxs = []int32{
-	8,  // 0: queng.plan.Plan.scan:type_name -> queng.plan.Scan
-	11, // 1: queng.plan.Plan.projection:type_name -> queng.plan.Projection
-	12, // 2: queng.plan.Plan.hash_join:type_name -> queng.plan.HashJoin
-	14, // 3: queng.plan.Plan.hash_aggregate:type_name -> queng.plan.HashAggregate
-	18, // 4: queng.plan.Plan.exchange_write:type_name -> queng.plan.ExchangeWrite
-	19, // 5: queng.plan.Plan.exchange_read:type_name -> queng.plan.ExchangeRead
+	9,  // 0: queng.plan.Plan.scan:type_name -> queng.plan.Scan
+	12, // 1: queng.plan.Plan.projection:type_name -> queng.plan.Projection
+	13, // 2: queng.plan.Plan.hash_join:type_name -> queng.plan.HashJoin
+	15, // 3: queng.plan.Plan.hash_aggregate:type_name -> queng.plan.HashAggregate
+	19, // 4: queng.plan.Plan.exchange_write:type_name -> queng.plan.ExchangeWrite
+	20, // 5: queng.plan.Plan.exchange_read:type_name -> queng.plan.ExchangeRead
 	5,  // 6: queng.plan.Schema.fields:type_name -> queng.plan.Field
 	0,  // 7: queng.plan.Field.type:type_name -> queng.plan.DataType
 	4,  // 8: queng.plan.CsvSource.schema:type_name -> queng.plan.Schema
@@ -1434,32 +1490,33 @@ var file_planserde_plan_proto_depIdxs = []int32{
 	6,  // 10: queng.plan.Scan.csv:type_name -> queng.plan.CsvSource
 	4,  // 11: queng.plan.Scan.output_schema:type_name -> queng.plan.Schema
 	7,  // 12: queng.plan.Scan.parquet:type_name -> queng.plan.ParquetSource
-	10, // 13: queng.plan.Expression.column:type_name -> queng.plan.Column
-	3,  // 14: queng.plan.Projection.input:type_name -> queng.plan.Plan
-	4,  // 15: queng.plan.Projection.output_schema:type_name -> queng.plan.Schema
-	9,  // 16: queng.plan.Projection.expressions:type_name -> queng.plan.Expression
-	3,  // 17: queng.plan.HashJoin.left:type_name -> queng.plan.Plan
-	3,  // 18: queng.plan.HashJoin.right:type_name -> queng.plan.Plan
-	4,  // 19: queng.plan.HashJoin.output_schema:type_name -> queng.plan.Schema
-	1,  // 20: queng.plan.HashJoin.type:type_name -> queng.plan.JoinType
-	9,  // 21: queng.plan.AggregateExpression.avg:type_name -> queng.plan.Expression
-	9,  // 22: queng.plan.AggregateExpression.count_expr:type_name -> queng.plan.Expression
-	3,  // 23: queng.plan.HashAggregate.input:type_name -> queng.plan.Plan
-	4,  // 24: queng.plan.HashAggregate.output_schema:type_name -> queng.plan.Schema
-	9,  // 25: queng.plan.HashAggregate.group_expressions:type_name -> queng.plan.Expression
-	13, // 26: queng.plan.HashAggregate.aggregate_expressions:type_name -> queng.plan.AggregateExpression
-	2,  // 27: queng.plan.HashAggregate.mode:type_name -> queng.plan.AggregateMode
-	16, // 28: queng.plan.Partitioning.hash:type_name -> queng.plan.HashPartitioning
-	17, // 29: queng.plan.Partitioning.single:type_name -> queng.plan.SinglePartition
-	3,  // 30: queng.plan.ExchangeWrite.input:type_name -> queng.plan.Plan
-	15, // 31: queng.plan.ExchangeWrite.partitioning:type_name -> queng.plan.Partitioning
-	4,  // 32: queng.plan.ExchangeRead.output_schema:type_name -> queng.plan.Schema
-	15, // 33: queng.plan.ExchangeRead.partitioning:type_name -> queng.plan.Partitioning
-	34, // [34:34] is the sub-list for method output_type
-	34, // [34:34] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	8,  // 13: queng.plan.Scan.selection:type_name -> queng.plan.ColumnSelection
+	11, // 14: queng.plan.Expression.column:type_name -> queng.plan.Column
+	3,  // 15: queng.plan.Projection.input:type_name -> queng.plan.Plan
+	4,  // 16: queng.plan.Projection.output_schema:type_name -> queng.plan.Schema
+	10, // 17: queng.plan.Projection.expressions:type_name -> queng.plan.Expression
+	3,  // 18: queng.plan.HashJoin.left:type_name -> queng.plan.Plan
+	3,  // 19: queng.plan.HashJoin.right:type_name -> queng.plan.Plan
+	4,  // 20: queng.plan.HashJoin.output_schema:type_name -> queng.plan.Schema
+	1,  // 21: queng.plan.HashJoin.type:type_name -> queng.plan.JoinType
+	10, // 22: queng.plan.AggregateExpression.avg:type_name -> queng.plan.Expression
+	10, // 23: queng.plan.AggregateExpression.count_expr:type_name -> queng.plan.Expression
+	3,  // 24: queng.plan.HashAggregate.input:type_name -> queng.plan.Plan
+	4,  // 25: queng.plan.HashAggregate.output_schema:type_name -> queng.plan.Schema
+	10, // 26: queng.plan.HashAggregate.group_expressions:type_name -> queng.plan.Expression
+	14, // 27: queng.plan.HashAggregate.aggregate_expressions:type_name -> queng.plan.AggregateExpression
+	2,  // 28: queng.plan.HashAggregate.mode:type_name -> queng.plan.AggregateMode
+	17, // 29: queng.plan.Partitioning.hash:type_name -> queng.plan.HashPartitioning
+	18, // 30: queng.plan.Partitioning.single:type_name -> queng.plan.SinglePartition
+	3,  // 31: queng.plan.ExchangeWrite.input:type_name -> queng.plan.Plan
+	16, // 32: queng.plan.ExchangeWrite.partitioning:type_name -> queng.plan.Partitioning
+	4,  // 33: queng.plan.ExchangeRead.output_schema:type_name -> queng.plan.Schema
+	16, // 34: queng.plan.ExchangeRead.partitioning:type_name -> queng.plan.Partitioning
+	35, // [35:35] is the sub-list for method output_type
+	35, // [35:35] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_planserde_plan_proto_init() }
@@ -1475,13 +1532,13 @@ func file_planserde_plan_proto_init() {
 		(*Plan_ExchangeWrite)(nil),
 		(*Plan_ExchangeRead)(nil),
 	}
-	file_planserde_plan_proto_msgTypes[6].OneofWrappers = []any{
+	file_planserde_plan_proto_msgTypes[7].OneofWrappers = []any{
 		(*Expression_Column)(nil),
 	}
-	file_planserde_plan_proto_msgTypes[10].OneofWrappers = []any{
+	file_planserde_plan_proto_msgTypes[11].OneofWrappers = []any{
 		(*AggregateExpression_Avg)(nil),
 	}
-	file_planserde_plan_proto_msgTypes[12].OneofWrappers = []any{
+	file_planserde_plan_proto_msgTypes[13].OneofWrappers = []any{
 		(*Partitioning_Hash)(nil),
 		(*Partitioning_Single)(nil),
 	}
@@ -1491,7 +1548,7 @@ func file_planserde_plan_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_planserde_plan_proto_rawDesc), len(file_planserde_plan_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   17,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -95,8 +95,13 @@ func (s *CSVSource) BatchSize() int { return s.batchSize }
 func (s *CSVSource) PartitionCount() int { return 1 }
 
 // Scan reopens the file and yields batches owned by the consumer.
-func (s *CSVSource) Scan(partitionID int) iter.Seq2[RecordBatch, error] {
+func (s *CSVSource) Scan(partitionID int, columns []int) iter.Seq2[RecordBatch, error] {
 	return func(yield func(RecordBatch, error) bool) {
+		schema, selected, err := scanColumns(s.schema, columns)
+		if err != nil {
+			yield(RecordBatch{}, err)
+			return
+		}
 		if partitionID != 0 {
 			yield(RecordBatch{}, fmt.Errorf("CSV partition %d out of range", partitionID))
 			return
@@ -123,7 +128,7 @@ func (s *CSVSource) Scan(partitionID int) iter.Seq2[RecordBatch, error] {
 				return
 			}
 		}
-		values := make([][]any, len(header))
+		values := make([][]any, len(selected))
 		rowCount := 0
 		for {
 			record, readErr := reader.Read()
@@ -132,10 +137,10 @@ func (s *CSVSource) Scan(partitionID int) iter.Seq2[RecordBatch, error] {
 				return
 			}
 			if readErr == nil {
-				for i, value := range record {
-					parsed, err := parseCSVValue(value, s.schema.Fields[i].Type)
+				for i, index := range selected {
+					parsed, err := parseCSVValue(record[index], schema.Fields[i].Type)
 					if err != nil {
-						yield(RecordBatch{}, fmt.Errorf("column %q: %w", s.schema.Fields[i].Name, err))
+						yield(RecordBatch{}, fmt.Errorf("column %q: %w", schema.Fields[i].Name, err))
 						return
 					}
 					values[i] = append(values[i], parsed)
@@ -144,20 +149,20 @@ func (s *CSVSource) Scan(partitionID int) iter.Seq2[RecordBatch, error] {
 			}
 			if rowCount == s.batchSize || (readErr == io.EOF && rowCount > 0) {
 				var columns []ColumnVector
-				for i, field := range s.schema.Fields {
+				for i, field := range schema.Fields {
 					column, err := NewArrowColumn(field.Type, values[i])
 					if err != nil {
-						NewRecordBatch(s.schema, columns).Release()
+						NewRecordBatch(schema, columns).Release()
 						yield(RecordBatch{}, err)
 						return
 					}
 					columns = append(columns, column)
 				}
-				batch := NewRecordBatch(s.schema, columns)
+				batch := NewRecordBatch(schema, columns)
 				if !yield(batch, nil) {
 					return
 				}
-				values = make([][]any, len(header))
+				values = make([][]any, len(selected))
 				rowCount = 0
 			}
 			if readErr == io.EOF {

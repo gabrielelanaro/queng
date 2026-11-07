@@ -33,6 +33,7 @@ type AggregateExpr interface {
 type Scan struct {
 	TableName string
 	Source    datasource.DataSource
+	Columns   []string // nil selects all source columns
 }
 
 func (Scan) Children() []LogicalPlan { return nil }
@@ -40,6 +41,30 @@ func (Scan) Children() []LogicalPlan { return nil }
 func (s Scan) Schema() (datasource.Schema, error) {
 	schema := s.Source.Schema()
 	fields := append([]datasource.Field(nil), schema.Fields...)
+	if s.Columns != nil {
+		if len(s.Columns) == 0 {
+			return datasource.Schema{}, fmt.Errorf("scan requires at least one column")
+		}
+		fields = make([]datasource.Field, 0, len(s.Columns))
+		seen := make(map[string]bool)
+		for _, name := range s.Columns {
+			if seen[name] {
+				return datasource.Schema{}, fmt.Errorf("duplicate scan column %q", name)
+			}
+			seen[name] = true
+			found := false
+			for _, field := range schema.Fields {
+				if field.Name == name {
+					fields = append(fields, field)
+					found = true
+					break
+				}
+			}
+			if !found {
+				return datasource.Schema{}, fmt.Errorf("no column named %q", name)
+			}
+		}
+	}
 	for i := range fields {
 		fields[i].Qualifier = s.TableName
 	}

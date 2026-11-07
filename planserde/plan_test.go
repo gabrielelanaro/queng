@@ -213,7 +213,7 @@ func TestRoundTripParquetScan(t *testing.T) {
 		t.Fatalf("partition count = %d; want 2", scan.Source.PartitionCount())
 	}
 	var values []any
-	for batch, err := range scan.Source.Scan(1) {
+	for batch, err := range scan.Source.Scan(1, nil) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -255,5 +255,47 @@ func TestRoundTripSinglePartitionExchange(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, plan) {
 		t.Errorf("round trip = %#v; want %#v", got, plan)
+	}
+}
+
+func makeSelectedCSVScan(t *testing.T) physicalplan.ScanExec {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "inventory.csv")
+	if err := os.WriteFile(path, []byte("quantity,price,name\n2,9.5,book\n3,12,apple\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	source, err := datasource.NewCSVSource(path, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return physicalplan.ScanExec{
+		Source:  source,
+		Columns: []int{1},
+		OutputSchema: datasource.Schema{Fields: []datasource.Field{
+			{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Float64},
+		}},
+	}
+}
+
+func TestRoundTripScanPreservesColumnSelection(t *testing.T) {
+	plan := makeSelectedCSVScan(t)
+	message, err := planserde.SerializePlan(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := proto.Marshal(message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded := new(planserde.Plan)
+	if err := proto.Unmarshal(data, decoded); err != nil {
+		t.Fatal(err)
+	}
+	got, err := planserde.DeserializePlan(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, plan) {
+		t.Fatalf("round trip = %#v; want %#v", got, plan)
 	}
 }

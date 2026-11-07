@@ -55,8 +55,13 @@ func (s *ParquetSource) Schema() Schema      { return s.schema }
 func (s *ParquetSource) PartitionCount() int { return s.partitions }
 
 // Scan yields batches from one row group. The caller owns each batch.
-func (s *ParquetSource) Scan(partitionID int) iter.Seq2[RecordBatch, error] {
+func (s *ParquetSource) Scan(partitionID int, columns []int) iter.Seq2[RecordBatch, error] {
 	return func(yield func(RecordBatch, error) bool) {
+		schema, selected, err := scanColumns(s.schema, columns)
+		if err != nil {
+			yield(RecordBatch{}, err)
+			return
+		}
 		if partitionID < 0 || partitionID >= s.partitions {
 			yield(RecordBatch{}, fmt.Errorf("Parquet partition %d out of range", partitionID))
 			return
@@ -78,7 +83,7 @@ func (s *ParquetSource) Scan(partitionID int) iter.Seq2[RecordBatch, error] {
 			yield(RecordBatch{}, err)
 			return
 		}
-		records, err := arrowReader.GetRecordReader(context.Background(), nil, []int{partitionID})
+		records, err := arrowReader.GetRecordReader(context.Background(), selected, []int{partitionID})
 		if err != nil {
 			yield(RecordBatch{}, err)
 			return
@@ -92,7 +97,7 @@ func (s *ParquetSource) Scan(partitionID int) iter.Seq2[RecordBatch, error] {
 				column.Retain()
 				columns[i] = ArrowColumn{Array: column}
 			}
-			if !yield(NewRecordBatch(s.schema, columns), nil) {
+			if !yield(NewRecordBatch(schema, columns), nil) {
 				return
 			}
 		}

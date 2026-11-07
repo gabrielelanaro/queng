@@ -17,7 +17,7 @@ type batchInput struct{ batchesSource }
 
 func (batchInput) Children() []physicalplan.PhysicalPlan { return nil }
 func (s batchInput) Execute(_ execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
-	return s.Scan(partitionID)
+	return s.Scan(partitionID, nil)
 }
 
 func averageStateSchema() datasource.Schema {

@@ -42,22 +42,31 @@ func (a AvgExpr) NewAccumulator() Accumulator { return &AvgAccumulator{} }
 
 // ScanExec represents a scan of a data source.
 type ScanExec struct {
+	Columns      []int // source positions in output order; nil selects all columns
 	Source       datasource.DataSource
 	OutputSchema datasource.Schema
 }
 
 func (s ScanExec) Schema() datasource.Schema {
-	if s.OutputSchema.Fields == nil {
-		return s.Source.Schema()
+	if s.OutputSchema.Fields != nil {
+		return s.OutputSchema
 	}
-	return s.OutputSchema
+	schema := s.Source.Schema()
+	if s.Columns == nil {
+		return schema
+	}
+	fields := make([]datasource.Field, len(s.Columns))
+	for i, index := range s.Columns {
+		fields[i] = schema.Fields[index]
+	}
+	return datasource.Schema{Fields: fields}
 }
 
 func (ScanExec) Children() []PhysicalPlan { return nil }
 
 func (s ScanExec) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
-		for batch, err := range s.Source.Scan(partitionID) {
+		for batch, err := range s.Source.Scan(partitionID, s.Columns) {
 			if err == nil {
 				batch.Schema = s.Schema()
 			}
@@ -164,7 +173,20 @@ func BuildPhysicalPlan(plan logicalplan.LogicalPlan) (PhysicalPlan, error) {
 		if err != nil {
 			return nil, err
 		}
-		return ScanExec{Source: p.Source, OutputSchema: schema}, nil
+		var columns []int
+		if p.Columns != nil {
+			columns = make([]int, 0, len(p.Columns))
+			sourceSchema := p.Source.Schema()
+			for _, name := range p.Columns {
+				for i, field := range sourceSchema.Fields {
+					if field.Name == name {
+						columns = append(columns, i)
+						break
+					}
+				}
+			}
+		}
+		return ScanExec{Source: p.Source, OutputSchema: schema, Columns: columns}, nil
 	case *logicalplan.Scan:
 		if p == nil {
 			return nil, fmt.Errorf("nil logical scan")

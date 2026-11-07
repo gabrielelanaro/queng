@@ -18,7 +18,7 @@ func (s testSource) Schema() datasource.Schema { return s.schema }
 
 func (s testSource) PartitionCount() int { return 1 }
 
-func (s testSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (s testSource) Scan(partitionID int, columns []int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {}
 }
 

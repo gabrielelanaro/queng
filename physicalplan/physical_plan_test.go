@@ -18,7 +18,7 @@ func (s testSource) Schema() datasource.Schema { return s.schema }
 
 func (s testSource) PartitionCount() int { return 1 }
 
-func (s testSource) Scan(partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (s testSource) Scan(partitionID int, columns []int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {}
 }
 
@@ -146,6 +146,35 @@ func TestBuildPhysicalPlanForLeftJoin(t *testing.T) {
 			{Qualifier: "products", Name: "product_id", Type: arrow.PrimitiveTypes.Int64},
 			{Qualifier: "products", Name: "product", Type: arrow.BinaryTypes.String},
 		}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("BuildPhysicalPlan() = %#v; want %#v", got, want)
+	}
+}
+
+func TestBuildPhysicalPlanResolvesColumnsAgainstSelectedScanSchema(t *testing.T) {
+	source := testSource{schema: datasource.Schema{Fields: []datasource.Field{
+		{Name: "quantity", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "price", Type: arrow.PrimitiveTypes.Float64},
+		{Name: "name", Type: arrow.BinaryTypes.String},
+	}}}
+	logical := logicalplan.Projection{
+		Input: logicalplan.Scan{TableName: "inventory", Source: source, Columns: []string{"price", "quantity"}},
+		Expr:  []logicalplan.LogicalExpr{logicalplan.Column{Name: "price"}},
+	}
+
+	got, err := physicalplan.BuildPhysicalPlan(logical)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedSchema := datasource.Schema{Fields: []datasource.Field{
+		{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Float64},
+		{Qualifier: "inventory", Name: "quantity", Type: arrow.PrimitiveTypes.Int64},
+	}}
+	want := physicalplan.ProjectionExec{
+		Input:        physicalplan.ScanExec{Source: source, Columns: []int{1, 0}, OutputSchema: selectedSchema},
+		OutputSchema: datasource.Schema{Fields: selectedSchema.Fields[:1]},
+		Expr:         []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("BuildPhysicalPlan() = %#v; want %#v", got, want)
