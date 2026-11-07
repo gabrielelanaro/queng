@@ -16,7 +16,7 @@ type RemoteExecutor struct {
 	ShufflePartitions int
 }
 
-func (e RemoteExecutor) Submit(ctx context.Context, task Task) <-chan TaskResult {
+func (e RemoteExecutor) Submit(ctx context.Context, task Task, report EventHandler) <-chan TaskResult {
 	result := make(chan TaskResult, 1)
 	go func() {
 		defer close(result)
@@ -42,6 +42,19 @@ func (e RemoteExecutor) Submit(ctx context.Context, task Task) <-chan TaskResult
 			if err != nil {
 				result <- TaskResult{Err: fmt.Errorf("run remote task: %w", err)}
 				return
+			}
+			if event := message.GetEvent(); event != nil && report != nil {
+				update := TaskEvent{JobID: task.JobID, StageID: task.Stage.ID, TaskID: task.ID, PartitionID: task.PartitionID, Time: event.GetTime().AsTime()}
+				switch {
+				case event.GetStarted() != nil:
+					update.Kind = TaskStarted
+				case event.GetCompleted() != nil:
+					update.Kind = TaskCompleted
+					update.Duration = event.GetCompleted().GetDuration().AsDuration()
+				default:
+					continue
+				}
+				report(update)
 			}
 			if message.GetResult() != nil {
 				response = message.GetResult()

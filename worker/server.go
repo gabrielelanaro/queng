@@ -40,7 +40,7 @@ func (s *Server) RunTask(request *workerapi.TaskRequest, stream workerapi.Worker
 	}
 	localExecutor := executor.LocalExecutor{Exchange: s.Exchange, ShufflePartitions: int(request.GetShufflePartitions())}
 	task := executor.Task{JobID: request.GetJobId(), ID: int(request.GetTaskId()), PartitionID: int(request.GetPartitionId()), Stage: distributed.Stage{Plan: plan}}
-	result := <-localExecutor.Submit(ctx, task)
+	result := <-localExecutor.Submit(ctx, task, nil)
 	if result.Err != nil {
 		log.Error().Err(result.Err).Str("job", request.GetJobId()).Int64("task", request.GetTaskId()).Msg("task failed")
 		return status.Errorf(codes.Internal, "execute task: %v", result.Err)

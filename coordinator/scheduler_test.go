@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/gabrielelanaro/queng/coordinator"
@@ -91,7 +92,7 @@ func TestSchedulerReturnsJoinedRows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	batches, err := scheduler.Run(context.Background(), "job-1", stages)
+	batches, err := scheduler.Run(context.Background(), "job-1", stages, func(executor.TaskEvent) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,5 +107,37 @@ func TestSchedulerReturnsJoinedRows(t *testing.T) {
 	want := []string{"1:10:apple", "2:20:<nil>"}
 	if !reflect.DeepEqual(rows, want) {
 		t.Errorf("rows = %v; want %v", rows, want)
+	}
+}
+
+func TestSchedulerReportsRemoteTaskEvents(t *testing.T) {
+	stages := makeJoinStages(t)
+	tracker := coordinator.NewMemoryLocationTracker()
+	scheduler, err := coordinator.NewScheduler(tracker, startWorkers(t, tracker), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var events []executor.TaskEvent
+	batches, err := scheduler.Run(context.Background(), "events-job", stages, func(event executor.TaskEvent) {
+		mu.Lock()
+		defer mu.Unlock()
+		events = append(events, event)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, batch := range batches {
+		batch.Release()
+	}
+	counts := map[executor.TaskEventKind]int{}
+	for _, event := range events {
+		if event.JobID != "events-job" || event.Time.IsZero() {
+			t.Errorf("invalid event: %+v", event)
+		}
+		counts[event.Kind]++
+	}
+	if counts[executor.TaskStarted] != 4 || counts[executor.TaskCompleted] != 4 {
+		t.Errorf("events: %v; want 4 starts and 4 completions", counts)
 	}
 }

@@ -57,7 +57,7 @@ func makeRemoteExecutor(t *testing.T) executor.RemoteExecutor {
 func TestRemoteExecutorReturnsTaskResults(t *testing.T) {
 	remote := makeRemoteExecutor(t)
 	task := executor.Task{JobID: "job-1", ID: 7, PartitionID: 0, Stage: distributed.Stage{Plan: makeProjection(t)}}
-	result := <-remote.Submit(context.Background(), task)
+	result := <-remote.Submit(context.Background(), task, nil)
 	if result.Err != nil {
 		t.Fatal(result.Err)
 	}
@@ -73,7 +73,7 @@ func TestRemoteExecutorReturnsTaskResults(t *testing.T) {
 	}
 
 	task.PartitionID = 1
-	if result := <-remote.Submit(context.Background(), task); result.Err == nil {
+	if result := <-remote.Submit(context.Background(), task, nil); result.Err == nil {
 		t.Fatal("invalid partition succeeded; want an execution error")
 	}
 }

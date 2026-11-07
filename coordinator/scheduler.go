@@ -32,8 +32,9 @@ func NewScheduler(tracker LocationTracker, workers map[string]executor.Executor,
 	return &Scheduler{tracker: tracker, workers: maps.Clone(workers), shufflePartitions: shufflePartitions}, nil
 }
 
-// Run executes the stages of one job and returns batches owned by the caller.
-func (s *Scheduler) Run(ctx context.Context, jobID string, stages []distributed.Stage) ([]datasource.RecordBatch, error) {
+// Run executes the stages of one job and reports task events as they arrive.
+// The handler may be called concurrently. The caller owns the returned batches.
+func (s *Scheduler) Run(ctx context.Context, jobID string, stages []distributed.Stage, report executor.EventHandler) ([]datasource.RecordBatch, error) {
 	if err := validateStages(stages); err != nil {
 		return nil, err
 	}
@@ -60,7 +61,7 @@ func (s *Scheduler) Run(ctx context.Context, jobID string, stages []distributed.
 				started[stage.ID] = true
 				running++
 				go func(stage distributed.Stage) {
-					batches, err := s.runStage(ctx, jobID, stage, addresses)
+					batches, err := s.runStage(ctx, jobID, stage, addresses, report)
 					_, writesExchange := stage.Plan.(distributed.ExchangeWrite)
 					results <- stageResult{id: stage.ID, batches: batches, err: err, writesExchange: writesExchange}
 				}(stage)
@@ -125,7 +126,7 @@ type taskResult struct {
 	err     error
 }
 
-func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distributed.Stage, addresses []string) ([]datasource.RecordBatch, error) {
+func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distributed.Stage, addresses []string, report executor.EventHandler) ([]datasource.RecordBatch, error) {
 	count, err := stagePartitionCount(stage.Plan, s.shufflePartitions)
 	if err != nil {
 		return nil, fmt.Errorf("stage %d: %w", stage.ID, err)
@@ -140,7 +141,7 @@ func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distribute
 		go func(partition int, address string) {
 			log.Info().Str("job", jobID).Int("stage", stage.ID).Int("task", partition).Str("worker", address).Msg("task submitted")
 			task := executor.Task{JobID: jobID, ID: partition, PartitionID: partition, Stage: stage}
-			response := <-s.workers[address].Submit(ctx, task)
+			response := <-s.workers[address].Submit(ctx, task, report)
 			results <- taskResult{taskID: partition, address: address, batches: response.Batches, err: response.Err}
 		}(partition, address)
 	}
