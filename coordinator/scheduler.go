@@ -63,7 +63,7 @@ func (s *Scheduler) Run(ctx context.Context, job *Job) ([]datasource.RecordBatch
 				running++
 				go func(stage distributed.Stage) {
 					batches, err := s.runStage(ctx, jobID, stage, addresses, job)
-					_, writesExchange := stage.Plan.(distributed.ExchangeWrite)
+					_, writesExchange := stage.Plan.(distributed.ExchangeWriteExec)
 					results <- stageResult{id: stage.ID, batches: batches, err: err, writesExchange: writesExchange}
 				}(stage)
 			}
@@ -169,7 +169,7 @@ func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distribute
 		log.Error().Err(firstErr).Str("job", jobID).Int("stage", stage.ID).Msg("stage failed")
 		return nil, fmt.Errorf("stage %d: %w", stage.ID, firstErr)
 	}
-	if _, ok := stage.Plan.(distributed.ExchangeWrite); ok {
+	if _, ok := stage.Plan.(distributed.ExchangeWriteExec); ok {
 		for _, result := range completed {
 			s.tracker.Track(jobID, stage.ID, OutputLocation{TaskID: result.taskID, WorkerAddress: result.address})
 		}
@@ -189,7 +189,7 @@ func stagePartitionCount(plan physicalplan.PhysicalPlan, shufflePartitions int) 
 		switch p := node.(type) {
 		case physicalplan.ScanExec:
 			n = p.Source.PartitionCount()
-		case distributed.ExchangeRead:
+		case distributed.ExchangeReadExec:
 			n = shufflePartitions
 		default:
 			for _, child := range node.Children() {
@@ -226,7 +226,7 @@ func validateStages(stages []distributed.Stage) error {
 			return fmt.Errorf("duplicate stage %d", stage.ID)
 		}
 		byID[stage.ID] = stage
-		if _, writesExchange := stage.Plan.(distributed.ExchangeWrite); !writesExchange {
+		if _, writesExchange := stage.Plan.(distributed.ExchangeWriteExec); !writesExchange {
 			resultStages++
 		}
 	}
@@ -236,7 +236,7 @@ func validateStages(stages []distributed.Stage) error {
 			if !exists {
 				return fmt.Errorf("unknown stage %d", dependency)
 			}
-			if _, writesExchange := producer.Plan.(distributed.ExchangeWrite); !writesExchange {
+			if _, writesExchange := producer.Plan.(distributed.ExchangeWriteExec); !writesExchange {
 				return fmt.Errorf("stage %d does not write exchange output", dependency)
 			}
 		}

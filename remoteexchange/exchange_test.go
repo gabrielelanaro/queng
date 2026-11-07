@@ -65,7 +65,7 @@ func TestCancelTaskCancelsExchangeLookup(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { workerConn.Close() })
-	plan, err := planserde.SerializePlan(distributed.ExchangeRead{StageID: 3})
+	plan, err := planserde.SerializePlan(distributed.ExchangeReadExec{StageID: 3})
 	if err != nil {
 		t.Fatal(err)
 	}

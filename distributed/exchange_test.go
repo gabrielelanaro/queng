@@ -47,17 +47,17 @@ func TestExchangeWritePartitionsRowsByKey(t *testing.T) {
 	source := makeSalesSource(t)
 	store := NewMemoryExchange()
 	defer store.Close()
-	writer := ExchangeWrite{
+	writer := ExchangeWriteExec{
 		Input:   physicalplan.ScanExec{Source: source},
 		StageID: 0,
 	}
 
 	for batch, err := range writer.Execute(execution.Context{JobID: "job-1", TaskID: 7, Exchange: store, ShufflePartitions: 2}, 0) {
 		if err != nil {
-			t.Fatalf("ExchangeWrite.Execute() returned an error: %v", err)
+			t.Fatalf("ExchangeWriteExec.Execute() returned an error: %v", err)
 		}
 		batch.Release()
-		t.Fatal("ExchangeWrite.Execute() returned a batch; want exchange output only")
+		t.Fatal("ExchangeWriteExec.Execute() returned a batch; want exchange output only")
 	}
 
 	rows := make(map[int64][]any)
@@ -112,7 +112,7 @@ func TestExchangeReadCollectsPartitionFromAllProducers(t *testing.T) {
 		}
 	}
 
-	reader := ExchangeRead{StageID: 1, OutputSchema: source.Schema()}
+	reader := ExchangeReadExec{StageID: 1, OutputSchema: source.Schema()}
 	var batches int
 	for batch, err := range reader.Execute(execution.Context{Context: context.Background(), JobID: "job-1", Exchange: store}, 2) {
 		if err != nil {

@@ -101,13 +101,13 @@ func SerializePlan(plan physicalplan.PhysicalPlan) (*Plan, error) {
 			a.AggregateExpressions = append(a.AggregateExpressions, &AggregateExpression{Node: &AggregateExpression_Avg{Avg: arg}})
 		}
 		return &Plan{Node: &Plan_HashAggregate{HashAggregate: a}}, nil
-	case distributed.ExchangeWrite:
+	case distributed.ExchangeWriteExec:
 		input, err := SerializePlan(p.Input)
 		if err != nil {
 			return nil, err
 		}
 		return &Plan{Node: &Plan_ExchangeWrite{ExchangeWrite: &ExchangeWrite{Input: input, StageId: int64(p.StageID), KeyIndex: int64(p.KeyIndex)}}}, nil
-	case distributed.ExchangeRead:
+	case distributed.ExchangeReadExec:
 		schema, err := encodeSchema(p.OutputSchema)
 		if err != nil {
 			return nil, err
@@ -295,7 +295,7 @@ func DeserializePlan(plan *Plan) (physicalplan.PhysicalPlan, error) {
 		if err != nil {
 			return nil, err
 		}
-		return distributed.ExchangeWrite{Input: input, StageID: int(x.StageId), KeyIndex: int(x.KeyIndex)}, nil
+		return distributed.ExchangeWriteExec{Input: input, StageID: int(x.StageId), KeyIndex: int(x.KeyIndex)}, nil
 	case *Plan_ExchangeRead:
 		if p.ExchangeRead == nil {
 			return nil, fmt.Errorf("missing exchange read")
@@ -305,7 +305,7 @@ func DeserializePlan(plan *Plan) (physicalplan.PhysicalPlan, error) {
 		if err != nil {
 			return nil, err
 		}
-		return distributed.ExchangeRead{StageID: int(x.StageId), OutputSchema: schema}, nil
+		return distributed.ExchangeReadExec{StageID: int(x.StageId), OutputSchema: schema}, nil
 	default:
 		return nil, fmt.Errorf("unsupported plan node: %T", plan.Node)
 	}

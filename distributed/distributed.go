@@ -22,20 +22,20 @@ type Stage struct {
 	Dependencies []int
 }
 
-// ExchangeWrite partitions its input for downstream stages.
-type ExchangeWrite struct {
+// ExchangeWriteExec partitions its input for downstream stages.
+type ExchangeWriteExec struct {
 	Input    physicalplan.PhysicalPlan
 	StageID  int
 	KeyIndex int
 }
 
-func (e ExchangeWrite) Schema() datasource.Schema { return e.Input.Schema() }
+func (e ExchangeWriteExec) Schema() datasource.Schema { return e.Input.Schema() }
 
-func (e ExchangeWrite) Children() []physicalplan.PhysicalPlan {
+func (e ExchangeWriteExec) Children() []physicalplan.PhysicalPlan {
 	return []physicalplan.PhysicalPlan{e.Input}
 }
 
-func (e ExchangeWrite) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (e ExchangeWriteExec) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		if ctx.Exchange == nil {
 			yield(datasource.RecordBatch{}, fmt.Errorf("exchange store is not configured"))
@@ -57,7 +57,7 @@ func (e ExchangeWrite) Execute(ctx execution.Context, partitionID int) iter.Seq2
 }
 
 // writeBatch groups rows by output partition and writes each group as a batch.
-func (e ExchangeWrite) writeBatch(ctx execution.Context, batch datasource.RecordBatch) error {
+func (e ExchangeWriteExec) writeBatch(ctx execution.Context, batch datasource.RecordBatch) error {
 	if e.KeyIndex < 0 || e.KeyIndex >= batch.ColumnCount() {
 		return fmt.Errorf("exchange key index %d out of range", e.KeyIndex)
 	}
@@ -124,17 +124,17 @@ func hashKey(value any) (uint64, error) {
 	return h.Sum64(), nil
 }
 
-// ExchangeRead reads the partition produced by an upstream stage.
-type ExchangeRead struct {
+// ExchangeReadExec reads the partition produced by an upstream stage.
+type ExchangeReadExec struct {
 	StageID      int
 	OutputSchema datasource.Schema
 }
 
-func (e ExchangeRead) Schema() datasource.Schema { return e.OutputSchema }
+func (e ExchangeReadExec) Schema() datasource.Schema { return e.OutputSchema }
 
-func (ExchangeRead) Children() []physicalplan.PhysicalPlan { return nil }
+func (ExchangeReadExec) Children() []physicalplan.PhysicalPlan { return nil }
 
-func (e ExchangeRead) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (e ExchangeReadExec) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	if ctx.Exchange == nil {
 		return func(yield func(datasource.RecordBatch, error) bool) {
 			yield(datasource.RecordBatch{}, fmt.Errorf("exchange store is not configured"))
@@ -166,7 +166,7 @@ func (b *stageBuilder) addStage(plan physicalplan.PhysicalPlan) int {
 
 func stageDependencies(plan physicalplan.PhysicalPlan) []int {
 	var dependencies []int
-	if read, ok := plan.(ExchangeRead); ok {
+	if read, ok := plan.(ExchangeReadExec); ok {
 		dependencies = append(dependencies, read.StageID)
 	}
 	for _, child := range plan.Children() {
@@ -220,7 +220,7 @@ func (b *stageBuilder) buildInput(plan physicalplan.PhysicalPlan, keyIndex int) 
 		return nil, err
 	}
 	id := b.addStageWithID(func(id int) physicalplan.PhysicalPlan {
-		return ExchangeWrite{Input: input, StageID: id, KeyIndex: keyIndex}
+		return ExchangeWriteExec{Input: input, StageID: id, KeyIndex: keyIndex}
 	})
-	return ExchangeRead{StageID: id, OutputSchema: schema}, nil
+	return ExchangeReadExec{StageID: id, OutputSchema: schema}, nil
 }

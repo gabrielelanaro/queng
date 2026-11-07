@@ -36,7 +36,7 @@ func makeExchangePlan(t *testing.T) *planserde.Plan {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := planserde.SerializePlan(distributed.ExchangeWrite{Input: physicalplan.ScanExec{Source: source}, StageID: 3, KeyIndex: 0})
+	plan, err := planserde.SerializePlan(distributed.ExchangeWriteExec{Input: physicalplan.ScanExec{Source: source}, StageID: 3, KeyIndex: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestRunTaskReturnsProjectedBatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	projection := physicalplan.ProjectionExec{
-		Input: input.(distributed.ExchangeWrite).Input,
+		Input: input.(distributed.ExchangeWriteExec).Input,
 		OutputSchema: datasource.Schema{Fields: []datasource.Field{
 			{Qualifier: "inventory", Name: "price", Type: arrow.PrimitiveTypes.Int64},
 		}},
