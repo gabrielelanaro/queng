@@ -1,0 +1,21 @@
+syntax = "proto3";
+package queng.coordinator;
+option go_package = "github.com/gabrielelanaro/queng/coordinator";
+
+service Coordinator {
+  rpc GetLocations(LocationRequest) returns (LocationResponse);
+}
+
+message LocationRequest {
+  string job_id = 1;
+  int64 stage_id = 2;
+}
+
+message ProducerLocation {
+  int64 task_id = 1;
+  string worker_address = 2;
+}
+
+message LocationResponse {
+  repeated ProducerLocation locations = 1;
+}
