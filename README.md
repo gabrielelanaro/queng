@@ -83,3 +83,35 @@ go run ./cmd/queng "SELECT sale FROM sales" --server http://localhost:8080
 ```
 
 The CLI polls the coordinator for a stage progress snapshot and prints the result when the job finishes.
+
+
+## Larger Parquet fixture
+
+Generate 1,000,000 sales across 48 partitions and 2,000 products across 8
+partitions. Products have eight categories; sales include popular products and
+2% unmatched product IDs to exercise the left join.
+
+```sh
+go run ./scripts/parquet-fixture
+podman-compose -f compose.yaml -f compose.parquet.yaml up -d --force-recreate
+```
+
+Recreate the services after regenerating files so they reload the schema and
+partition counts. The files are mounted from the host, so no image rebuild is
+needed.
+
+This query joins both tables, then shuffles partial averages by category. Its
+result stays small enough to read in the terminal:
+
+```sh
+go run ./cmd/queng \
+  "SELECT products.category, AVG(sales.sale) FROM sales LEFT JOIN products ON sales.product_id = products.product_id GROUP BY products.category" \
+  --server http://localhost:8080
+```
+
+Increase the workload while keeping the same query:
+
+```sh
+go run ./scripts/parquet-fixture --sales 3000000 --sales-partitions 96
+podman-compose -f compose.yaml -f compose.parquet.yaml up -d --force-recreate
+```
