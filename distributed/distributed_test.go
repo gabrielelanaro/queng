@@ -58,7 +58,7 @@ func TestBuildStagesForHashJoin(t *testing.T) {
 			},
 		},
 		{
-			ID: 2,
+			ID: 2, Dependencies: []int{0, 1},
 			Plan: physicalplan.HashJoinExec{
 				Left:         ExchangeRead{StageID: 0, OutputSchema: salesSchema},
 				Right:        ExchangeRead{StageID: 1, OutputSchema: productsSchema},
@@ -103,9 +103,9 @@ func TestBuildStagesForNestedJoin(t *testing.T) {
 	want := []Stage{
 		{ID: 0, Plan: ExchangeWrite{Input: scan, KeyIndex: 0}},
 		{ID: 1, Plan: ExchangeWrite{Input: scan, StageID: 1, KeyIndex: 0}},
-		{ID: 2, Plan: ExchangeWrite{Input: inner, StageID: 2, KeyIndex: 0}},
+		{ID: 2, Plan: ExchangeWrite{Input: inner, StageID: 2, KeyIndex: 0}, Dependencies: []int{0, 1}},
 		{ID: 3, Plan: ExchangeWrite{Input: scan, StageID: 3, KeyIndex: 0}},
-		{ID: 4, Plan: projection},
+		{ID: 4, Plan: projection, Dependencies: []int{2, 3}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("BuildStages() = %#v; want %#v", got, want)

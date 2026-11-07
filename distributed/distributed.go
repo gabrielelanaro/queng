@@ -15,8 +15,9 @@ import (
 
 // Stage describes one part of a distributed physical plan.
 type Stage struct {
-	ID   int
-	Plan physicalplan.PhysicalPlan
+	ID           int
+	Plan         physicalplan.PhysicalPlan
+	Dependencies []int
 }
 
 // ExchangeWrite partitions its input for downstream stages.
@@ -156,8 +157,19 @@ type stageBuilder struct {
 
 func (b *stageBuilder) addStage(plan physicalplan.PhysicalPlan) int {
 	id := len(b.stages)
-	b.stages = append(b.stages, Stage{ID: id, Plan: plan})
+	b.stages = append(b.stages, Stage{ID: id, Plan: plan, Dependencies: stageDependencies(plan)})
 	return id
+}
+
+func stageDependencies(plan physicalplan.PhysicalPlan) []int {
+	var dependencies []int
+	if read, ok := plan.(ExchangeRead); ok {
+		dependencies = append(dependencies, read.StageID)
+	}
+	for _, child := range plan.Children() {
+		dependencies = append(dependencies, stageDependencies(child)...)
+	}
+	return dependencies
 }
 
 func (b *stageBuilder) addStageWithID(buildPlan func(int) physicalplan.PhysicalPlan) int {
