@@ -16,6 +16,13 @@ type Accumulator interface {
 	FinalValue() any
 }
 
+// MergeableAccumulator can exchange intermediate state between aggregation stages.
+type MergeableAccumulator interface {
+	Accumulator
+	IntermediateValues() []any
+	Merge(values []any) error
+}
+
 // AvgAccumulator maintains the sum and count of non-null values.
 type AvgAccumulator struct {
 	sum   float64
