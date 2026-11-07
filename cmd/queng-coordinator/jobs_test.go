@@ -73,6 +73,17 @@ func TestSubmittedQueryReturnsRows(t *testing.T) {
 			if !reflect.DeepEqual(job.Result, want) {
 				t.Errorf("query result = %#v; want %#v", job.Result, want)
 			}
+			progress := httptest.NewRecorder()
+			registry.get(progress, httptest.NewRequest(http.MethodGet, "/queries/"+submission.JobID+"/progress", nil))
+			var snapshot struct {
+				Stages []stageProgress `json:"stages"`
+			}
+			if err := json.Unmarshal(progress.Body.Bytes(), &snapshot); err != nil {
+				t.Fatal(err)
+			}
+			if len(snapshot.Stages) != 1 || snapshot.Stages[0].Status != "completed" || snapshot.Stages[0].CompletedTasks != 1 {
+				t.Errorf("progress = %s", progress.Body)
+			}
 			return
 		}
 		if time.Now().After(deadline) {

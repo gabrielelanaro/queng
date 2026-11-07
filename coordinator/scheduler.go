@@ -82,9 +82,12 @@ func (s *Scheduler) Run(ctx context.Context, job *Job) ([]datasource.RecordBatch
 		}
 		result := <-results
 		running--
-		if result.err != nil && firstErr == nil {
-			firstErr = result.err
-			cancel()
+		if result.err != nil {
+			job.record(JobEvent{Kind: "stage_failed", StageID: result.id, Time: time.Now()})
+			if firstErr == nil {
+				firstErr = result.err
+				cancel()
+			}
 		}
 		finished[result.id] = true
 		if result.writesExchange {

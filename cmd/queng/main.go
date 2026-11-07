@@ -31,7 +31,8 @@ func (t *tableFlags) Set(value string) error {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(stderr, `Usage: queng "SELECT price FROM inventory" --table inventory=inventory.csv`)
+		fmt.Fprintln(stderr, `Usage: queng "SELECT price FROM inventory" --table inventory=inventory.csv
+       queng "SELECT sale FROM sales" --server http://localhost:8080`)
 		if len(args) == 0 {
 			return fmt.Errorf("a SQL query and at least one --table are required")
 		}
@@ -43,11 +44,15 @@ func run(args []string, stdout, stderr io.Writer) error {
 	var tableArgs tableFlags
 	flags.Var(&tableArgs, "table", "register a CSV table as name=path (repeatable)")
 	batchSize := flags.Int("batch-size", 1024, "maximum rows per input batch")
+	server := flags.String("server", "", "coordinator URL for distributed execution")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("unexpected argument %q", flags.Arg(0))
+	}
+	if *server != "" {
+		return runRemote(query, *server, stdout, stderr)
 	}
 	if len(tableArgs) == 0 {
 		return fmt.Errorf("at least one --table name=path is required")

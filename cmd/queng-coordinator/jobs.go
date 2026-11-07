@@ -12,6 +12,7 @@ import (
 	"github.com/gabrielelanaro/queng/coordinator"
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/distributed"
+	"github.com/gabrielelanaro/queng/executor"
 	"github.com/gabrielelanaro/queng/logicalplan"
 	"github.com/gabrielelanaro/queng/parser"
 	"github.com/gabrielelanaro/queng/physicalplan"
@@ -132,6 +133,10 @@ func (r *jobRegistry) get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	id := strings.TrimPrefix(req.URL.Path, "/queries/")
+	progress := strings.HasSuffix(id, "/progress")
+	if progress {
+		id = strings.TrimSuffix(id, "/progress")
+	}
 	r.mu.RLock()
 	entry := r.jobs[id]
 	r.mu.RUnlock()
@@ -142,10 +147,58 @@ func (r *jobRegistry) get(w http.ResponseWriter, req *http.Request) {
 	entry.mu.RLock()
 	defer entry.mu.RUnlock()
 	w.Header().Set("Content-Type", "application/json")
+	if progress {
+		writeProgress(w, entry)
+		return
+	}
 	_ = json.NewEncoder(w).Encode(struct {
 		JobID  string          `json:"job_id"`
 		Status string          `json:"status"`
 		Result json.RawMessage `json:"result,omitempty"`
 		Error  string          `json:"error,omitempty"`
 	}{id, entry.status, entry.result, entry.failure})
+}
+
+type stageProgress struct {
+	ID             int    `json:"id"`
+	Dependencies   []int  `json:"dependencies"`
+	Status         string `json:"status"`
+	TaskCount      int    `json:"task_count"`
+	CompletedTasks int    `json:"completed_tasks"`
+}
+
+func writeProgress(w http.ResponseWriter, entry *jobEntry) {
+	stages := entry.job.Stages()
+	progress := make([]stageProgress, len(stages))
+	positions := make(map[int]int, len(stages))
+	for i, stage := range stages {
+		positions[stage.ID] = i
+		deps := append([]int{}, stage.Dependencies...)
+		progress[i] = stageProgress{ID: stage.ID, Dependencies: deps, Status: "waiting"}
+	}
+	for _, event := range entry.job.Events() {
+		index, ok := positions[event.StageID]
+		if !ok {
+			continue
+		}
+		switch event.Kind {
+		case "stage_started":
+			progress[index].Status = "running"
+			progress[index].TaskCount = event.TaskCount
+		case "stage_completed":
+			progress[index].Status = "completed"
+		case "stage_failed":
+			progress[index].Status = "failed"
+		case "task":
+			if event.Task != nil && event.Task.Kind == executor.TaskCompleted {
+				progress[index].CompletedTasks++
+			}
+		}
+	}
+	_ = json.NewEncoder(w).Encode(struct {
+		JobID  string          `json:"job_id"`
+		Status string          `json:"status"`
+		Error  string          `json:"error,omitempty"`
+		Stages []stageProgress `json:"stages"`
+	}{entry.job.ID, entry.status, entry.failure, progress})
 }

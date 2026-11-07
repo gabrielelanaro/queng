@@ -71,3 +71,11 @@ curl -fsS http://localhost:8080/queries/JOB_ID
 ```
 
 Use a table configured on the coordinator (the Compose fixture provides `sales` and `products`). Jobs and results are currently kept in memory until the coordinator stops.
+
+To run a distributed query with CLI progress:
+
+```sh
+go run ./cmd/queng "SELECT sale FROM sales" --server http://localhost:8080
+```
+
+The CLI polls the coordinator for a stage progress snapshot and prints the result when the job finishes.

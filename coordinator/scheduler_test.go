@@ -173,3 +173,30 @@ func TestJobRecordsStageGraphAndProgress(t *testing.T) {
 		t.Errorf("stage events: starts %v, completions %v", started, completed)
 	}
 }
+
+type failingExecutor struct{}
+
+func (failingExecutor) Submit(ctx context.Context, task executor.Task, report executor.EventHandler) <-chan executor.TaskResult {
+	result := make(chan executor.TaskResult, 1)
+	result <- executor.TaskResult{Err: fmt.Errorf("worker unavailable")}
+	close(result)
+	return result
+}
+
+func TestFailedStageIsRecorded(t *testing.T) {
+	stages := makeJoinStages(t)
+	scheduler, err := coordinator.NewScheduler(coordinator.NewMemoryLocationTracker(), map[string]executor.Executor{"worker": failingExecutor{}}, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := coordinator.NewJob("failed-job", stages)
+	if _, err := scheduler.Run(context.Background(), job); err == nil {
+		t.Fatal("query succeeded; want failure")
+	}
+	for _, event := range job.Events() {
+		if event.Kind == "stage_failed" {
+			return
+		}
+	}
+	t.Fatal("failed stage was not recorded")
+}
