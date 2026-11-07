@@ -1,6 +1,7 @@
 package distributed
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -101,7 +102,7 @@ func TestExchangeReadCollectsPartitionFromAllProducers(t *testing.T) {
 
 	reader := ExchangeRead{StageID: 1, OutputSchema: source.Schema()}
 	var batches int
-	for batch, err := range reader.Execute(execution.Context{JobID: "job-1", Exchange: store}, 2) {
+	for batch, err := range reader.Execute(execution.Context{Context: context.Background(), JobID: "job-1", Exchange: store}, 2) {
 		if err != nil {
 			t.Fatal(err)
 		}

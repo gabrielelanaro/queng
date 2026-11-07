@@ -1,6 +1,7 @@
 package distributed
 
 import (
+	"context"
 	"iter"
 	"reflect"
 	"testing"
@@ -61,7 +62,7 @@ func TestLocalExecutorRunsStage(t *testing.T) {
 	}
 
 	executor := LocalExecutor{}
-	result := <-executor.Submit(task)
+	result := <-executor.Submit(context.Background(), task)
 	if result.Err != nil {
 		t.Fatalf("task returned an error: %v", result.Err)
 	}
@@ -91,7 +92,7 @@ func TestLocalExecutorReportsExecutionError(t *testing.T) {
 		Expr:  []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 10}},
 	}}}
 
-	result := <-(LocalExecutor{}).Submit(task)
+	result := <-(LocalExecutor{}).Submit(context.Background(), task)
 	if result.Err == nil {
 		for _, batch := range result.Batches {
 			batch.Release()
@@ -128,7 +129,7 @@ func TestLocalExecutorExecutesAssignedPartition(t *testing.T) {
 			Expr: []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
 		}},
 	}
-	result := <-(LocalExecutor{}).Submit(task)
+	result := <-(LocalExecutor{}).Submit(context.Background(), task)
 	if result.Err != nil {
 		t.Fatal(result.Err)
 	}

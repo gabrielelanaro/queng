@@ -136,7 +136,7 @@ func (e ExchangeRead) Execute(ctx execution.Context, partitionID int) iter.Seq2[
 			yield(datasource.RecordBatch{}, fmt.Errorf("exchange store is not configured"))
 		}
 	}
-	return ctx.Exchange.ReadPartition(ctx.JobID, e.StageID, partitionID)
+	return ctx.Exchange.ReadPartition(ctx.Context, ctx.JobID, e.StageID, partitionID)
 }
 
 // BuildStages splits a physical plan at join inputs, in dependency order.

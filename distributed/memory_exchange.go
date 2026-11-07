@@ -1,6 +1,7 @@
 package distributed
 
 import (
+	"context"
 	"fmt"
 	"iter"
 	"sync"
@@ -35,7 +36,7 @@ func (m *MemoryExchange) Read(key execution.ExchangeKey) iter.Seq2[datasource.Re
 	return m.readMatching(func(k execution.ExchangeKey) bool { return k == key })
 }
 
-func (m *MemoryExchange) ReadPartition(jobID string, stageID, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (m *MemoryExchange) ReadPartition(ctx context.Context, jobID string, stageID, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return m.readMatching(func(k execution.ExchangeKey) bool {
 		return k.JobID == jobID && k.StageID == stageID && k.PartitionID == partitionID
 	})

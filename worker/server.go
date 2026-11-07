@@ -28,7 +28,7 @@ func (s *Server) RunTask(ctx context.Context, request *TaskRequest) (*TaskResult
 	}
 	executor := distributed.LocalExecutor{Exchange: s.Exchange, ShufflePartitions: int(request.GetShufflePartitions())}
 	task := distributed.Task{JobID: request.GetJobId(), ID: int(request.GetTaskId()), PartitionID: int(request.GetPartitionId()), Stage: distributed.Stage{Plan: plan}}
-	result := <-executor.Submit(task)
+	result := <-executor.Submit(ctx, task)
 	if result.Err != nil {
 		return nil, status.Errorf(codes.Internal, "execute task: %v", result.Err)
 	}

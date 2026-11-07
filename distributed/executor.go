@@ -1,6 +1,7 @@
 package distributed
 
 import (
+	"context"
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/execution"
 )
@@ -22,7 +23,7 @@ type TaskResult struct {
 
 // Executor submits tasks for execution.
 type Executor interface {
-	Submit(task Task) <-chan TaskResult
+	Submit(ctx context.Context, task Task) <-chan TaskResult
 }
 
 // LocalExecutor executes tasks in the current process.
@@ -31,13 +32,13 @@ type LocalExecutor struct {
 	ShufflePartitions int
 }
 
-func (e LocalExecutor) Submit(task Task) <-chan TaskResult {
+func (e LocalExecutor) Submit(ctx context.Context, task Task) <-chan TaskResult {
 	result := make(chan TaskResult, 1)
 	go func() {
 		defer close(result)
 		var batches []datasource.RecordBatch
-		ctx := execution.Context{JobID: task.JobID, TaskID: task.ID, ShufflePartitions: e.ShufflePartitions, Exchange: e.Exchange}
-		for batch, err := range task.Stage.Plan.Execute(ctx, task.PartitionID) {
+		execCtx := execution.Context{Context: ctx, JobID: task.JobID, TaskID: task.ID, ShufflePartitions: e.ShufflePartitions, Exchange: e.Exchange}
+		for batch, err := range task.Stage.Plan.Execute(execCtx, task.PartitionID) {
 			if err != nil {
 				for _, batch := range batches {
 					batch.Release()

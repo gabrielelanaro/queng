@@ -2,6 +2,7 @@
 package execution
 
 import (
+	"context"
 	"iter"
 
 	"github.com/gabrielelanaro/queng/datasource"
@@ -9,6 +10,7 @@ import (
 
 // Context holds the job and executor services for one task execution.
 type Context struct {
+	Context           context.Context
 	JobID             string
 	TaskID            int
 	ShufflePartitions int
@@ -34,7 +36,7 @@ type ExchangeStore interface {
 
 	// ReadPartition yields output from all producers for one stage partition.
 	// The caller owns the yielded batches and must release them.
-	ReadPartition(jobID string, stageID, partitionID int) iter.Seq2[datasource.RecordBatch, error]
+	ReadPartition(ctx context.Context, jobID string, stageID, partitionID int) iter.Seq2[datasource.RecordBatch, error]
 
 	// Close releases resources held by the store.
 	Close() error
