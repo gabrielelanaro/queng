@@ -32,9 +32,10 @@ func NewScheduler(tracker LocationTracker, workers map[string]executor.Executor,
 	return &Scheduler{tracker: tracker, workers: maps.Clone(workers), shufflePartitions: shufflePartitions}, nil
 }
 
-// Run executes the stages of one job and reports task events as they arrive.
-// The handler may be called concurrently. The caller owns the returned batches.
-func (s *Scheduler) Run(ctx context.Context, jobID string, stages []distributed.Stage, report executor.EventHandler) ([]datasource.RecordBatch, error) {
+// Run executes a job and records stage and task events. The caller owns the returned batches.
+func (s *Scheduler) Run(ctx context.Context, job *Job) ([]datasource.RecordBatch, error) {
+	jobID := job.ID
+	stages := job.Stages()
 	if err := validateStages(stages); err != nil {
 		return nil, err
 	}
@@ -61,7 +62,7 @@ func (s *Scheduler) Run(ctx context.Context, jobID string, stages []distributed.
 				started[stage.ID] = true
 				running++
 				go func(stage distributed.Stage) {
-					batches, err := s.runStage(ctx, jobID, stage, addresses, report)
+					batches, err := s.runStage(ctx, jobID, stage, addresses, job)
 					_, writesExchange := stage.Plan.(distributed.ExchangeWrite)
 					results <- stageResult{id: stage.ID, batches: batches, err: err, writesExchange: writesExchange}
 				}(stage)
@@ -126,12 +127,13 @@ type taskResult struct {
 	err     error
 }
 
-func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distributed.Stage, addresses []string, report executor.EventHandler) ([]datasource.RecordBatch, error) {
+func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distributed.Stage, addresses []string, job *Job) ([]datasource.RecordBatch, error) {
 	count, err := stagePartitionCount(stage.Plan, s.shufflePartitions)
 	if err != nil {
 		return nil, fmt.Errorf("stage %d: %w", stage.ID, err)
 	}
 	started := time.Now()
+	job.record(JobEvent{Kind: "stage_started", StageID: stage.ID, Time: started, TaskCount: count})
 	log.Info().Str("job", jobID).Int("stage", stage.ID).Int("tasks", count).Msg("stage started")
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -141,7 +143,7 @@ func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distribute
 		go func(partition int, address string) {
 			log.Info().Str("job", jobID).Int("stage", stage.ID).Int("task", partition).Str("worker", address).Msg("task submitted")
 			task := executor.Task{JobID: jobID, ID: partition, PartitionID: partition, Stage: stage}
-			response := <-s.workers[address].Submit(ctx, task, report)
+			response := <-s.workers[address].Submit(ctx, task, job.reportTask)
 			results <- taskResult{taskID: partition, address: address, batches: response.Batches, err: response.Err}
 		}(partition, address)
 	}
@@ -169,6 +171,7 @@ func (s *Scheduler) runStage(ctx context.Context, jobID string, stage distribute
 			s.tracker.Track(jobID, stage.ID, OutputLocation{TaskID: result.taskID, WorkerAddress: result.address})
 		}
 	}
+	job.record(JobEvent{Kind: "stage_completed", StageID: stage.ID, Time: time.Now(), TaskCount: count})
 	log.Info().Str("job", jobID).Int("stage", stage.ID).Dur("duration", time.Since(started)).Msg("stage completed")
 	return batches, nil
 }

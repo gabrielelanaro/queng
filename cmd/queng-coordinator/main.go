@@ -130,15 +130,8 @@ func queryHandler(scheduler *coordinator.Scheduler, tables map[string]datasource
 		jobID := uuid.NewString()
 		started := time.Now()
 		zlog.Info().Str("job", jobID).Int("stages", len(stages)).Msg("query started")
-		batches, err := scheduler.Run(r.Context(), jobID, stages, func(event executor.TaskEvent) {
-			logger := zlog.Info().Str("job", event.JobID).Int("stage", event.StageID).Int("task", event.TaskID)
-			switch event.Kind {
-			case executor.TaskStarted:
-				logger.Msg("task started")
-			case executor.TaskCompleted:
-				logger.Dur("duration", event.Duration).Msg("task completed")
-			}
-		})
+		job := coordinator.NewJob(jobID, stages)
+		batches, err := scheduler.Run(r.Context(), job)
 		if err != nil {
 			zlog.Error().Err(err).Str("job", jobID).Msg("query failed")
 			http.Error(w, fmt.Sprintf("execute query: %v", err), http.StatusInternalServerError)

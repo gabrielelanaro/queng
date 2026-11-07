@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
-	"sync"
 	"testing"
 
 	"github.com/gabrielelanaro/queng/coordinator"
@@ -92,7 +91,7 @@ func TestSchedulerReturnsJoinedRows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	batches, err := scheduler.Run(context.Background(), "job-1", stages, func(executor.TaskEvent) {})
+	batches, err := scheduler.Run(context.Background(), coordinator.NewJob("job-1", stages))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,13 +116,8 @@ func TestSchedulerReportsRemoteTaskEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var mu sync.Mutex
-	var events []executor.TaskEvent
-	batches, err := scheduler.Run(context.Background(), "events-job", stages, func(event executor.TaskEvent) {
-		mu.Lock()
-		defer mu.Unlock()
-		events = append(events, event)
-	})
+	job := coordinator.NewJob("events-job", stages)
+	batches, err := scheduler.Run(context.Background(), job)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +125,11 @@ func TestSchedulerReportsRemoteTaskEvents(t *testing.T) {
 		batch.Release()
 	}
 	counts := map[executor.TaskEventKind]int{}
-	for _, event := range events {
+	for _, entry := range job.Events() {
+		if entry.Task == nil {
+			continue
+		}
+		event := *entry.Task
 		if event.JobID != "events-job" || event.Time.IsZero() {
 			t.Errorf("invalid event: %+v", event)
 		}
@@ -139,5 +137,39 @@ func TestSchedulerReportsRemoteTaskEvents(t *testing.T) {
 	}
 	if counts[executor.TaskStarted] != 4 || counts[executor.TaskCompleted] != 4 {
 		t.Errorf("events: %v; want 4 starts and 4 completions", counts)
+	}
+}
+
+func TestJobRecordsStageGraphAndProgress(t *testing.T) {
+	stages := makeJoinStages(t)
+	tracker := coordinator.NewMemoryLocationTracker()
+	scheduler, err := coordinator.NewScheduler(tracker, startWorkers(t, tracker), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := coordinator.NewJob("stage-job", stages)
+	batches, err := scheduler.Run(context.Background(), job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, batch := range batches {
+		batch.Release()
+	}
+	graph := job.Stages()
+	if len(graph) != 3 || !reflect.DeepEqual(graph[2].Dependencies, []int{0, 1}) {
+		t.Fatalf("stage graph = %v; want join depending on stages 0 and 1", graph)
+	}
+	started := map[int]int{}
+	completed := map[int]bool{}
+	for _, event := range job.Events() {
+		switch event.Kind {
+		case "stage_started":
+			started[event.StageID] = event.TaskCount
+		case "stage_completed":
+			completed[event.StageID] = true
+		}
+	}
+	if !reflect.DeepEqual(started, map[int]int{0: 1, 1: 1, 2: 2}) || len(completed) != 3 {
+		t.Errorf("stage events: starts %v, completions %v", started, completed)
 	}
 }
