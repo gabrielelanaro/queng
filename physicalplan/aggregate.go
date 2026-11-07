@@ -13,14 +13,9 @@ import (
 // Accumulator maintains the state of an aggregate for one group.
 type Accumulator interface {
 	Accumulate(value any) error
-	FinalValue() any
-}
-
-// MergeableAccumulator can exchange intermediate state between aggregation stages.
-type MergeableAccumulator interface {
-	Accumulator
 	IntermediateValues() []any
 	Merge(values []any) error
+	FinalValue() any
 }
 
 // AvgAccumulator maintains the sum and count of non-null values.
@@ -61,6 +56,27 @@ func (a *AvgAccumulator) FinalValue() any {
 		return nil
 	}
 	return a.sum / float64(a.count)
+}
+
+func (a *AvgAccumulator) IntermediateValues() []any {
+	return []any{a.sum, int64(a.count)}
+}
+
+func (a *AvgAccumulator) Merge(values []any) error {
+	if len(values) != 2 {
+		return fmt.Errorf("average state must contain sum and count")
+	}
+	sum, ok := values[0].(float64)
+	if !ok {
+		return fmt.Errorf("average sum must be float64, got %T", values[0])
+	}
+	count, ok := values[1].(int64)
+	if !ok || count < 0 {
+		return fmt.Errorf("average count must be a non-negative int64")
+	}
+	a.sum += sum
+	a.count += int(count)
+	return nil
 }
 
 type aggregateGroup struct {
