@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Worker_RunTask_FullMethodName = "/queng.worker.Worker/RunTask"
+	Worker_RunTask_FullMethodName       = "/queng.worker.Worker/RunTask"
+	Worker_ReadPartition_FullMethodName = "/queng.worker.Worker/ReadPartition"
 )
 
 // WorkerClient is the client API for Worker service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type WorkerClient interface {
 	RunTask(ctx context.Context, in *TaskRequest, opts ...grpc.CallOption) (*TaskResult, error)
+	ReadPartition(ctx context.Context, in *PartitionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Batch], error)
 }
 
 type workerClient struct {
@@ -47,11 +49,31 @@ func (c *workerClient) RunTask(ctx context.Context, in *TaskRequest, opts ...grp
 	return out, nil
 }
 
+func (c *workerClient) ReadPartition(ctx context.Context, in *PartitionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Batch], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Worker_ServiceDesc.Streams[0], Worker_ReadPartition_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[PartitionRequest, Batch]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Worker_ReadPartitionClient = grpc.ServerStreamingClient[Batch]
+
 // WorkerServer is the server API for Worker service.
 // All implementations must embed UnimplementedWorkerServer
 // for forward compatibility.
 type WorkerServer interface {
 	RunTask(context.Context, *TaskRequest) (*TaskResult, error)
+	ReadPartition(*PartitionRequest, grpc.ServerStreamingServer[Batch]) error
 	mustEmbedUnimplementedWorkerServer()
 }
 
@@ -64,6 +86,9 @@ type UnimplementedWorkerServer struct{}
 
 func (UnimplementedWorkerServer) RunTask(context.Context, *TaskRequest) (*TaskResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunTask not implemented")
+}
+func (UnimplementedWorkerServer) ReadPartition(*PartitionRequest, grpc.ServerStreamingServer[Batch]) error {
+	return status.Errorf(codes.Unimplemented, "method ReadPartition not implemented")
 }
 func (UnimplementedWorkerServer) mustEmbedUnimplementedWorkerServer() {}
 func (UnimplementedWorkerServer) testEmbeddedByValue()                {}
@@ -104,6 +129,17 @@ func _Worker_RunTask_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Worker_ReadPartition_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(PartitionRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(WorkerServer).ReadPartition(m, &grpc.GenericServerStream[PartitionRequest, Batch]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Worker_ReadPartitionServer = grpc.ServerStreamingServer[Batch]
+
 // Worker_ServiceDesc is the grpc.ServiceDesc for Worker service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -116,6 +152,12 @@ var Worker_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Worker_RunTask_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ReadPartition",
+			Handler:       _Worker_ReadPartition_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "worker/worker.proto",
 }

@@ -142,6 +142,118 @@ func (x *TaskResult) GetBatches() [][]byte {
 	return nil
 }
 
+type PartitionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	StageId       int64                  `protobuf:"varint,2,opt,name=stage_id,json=stageId,proto3" json:"stage_id,omitempty"`
+	TaskId        int64                  `protobuf:"varint,3,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	PartitionId   int64                  `protobuf:"varint,4,opt,name=partition_id,json=partitionId,proto3" json:"partition_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PartitionRequest) Reset() {
+	*x = PartitionRequest{}
+	mi := &file_worker_worker_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PartitionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PartitionRequest) ProtoMessage() {}
+
+func (x *PartitionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_worker_worker_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PartitionRequest.ProtoReflect.Descriptor instead.
+func (*PartitionRequest) Descriptor() ([]byte, []int) {
+	return file_worker_worker_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *PartitionRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *PartitionRequest) GetStageId() int64 {
+	if x != nil {
+		return x.StageId
+	}
+	return 0
+}
+
+func (x *PartitionRequest) GetTaskId() int64 {
+	if x != nil {
+		return x.TaskId
+	}
+	return 0
+}
+
+func (x *PartitionRequest) GetPartitionId() int64 {
+	if x != nil {
+		return x.PartitionId
+	}
+	return 0
+}
+
+type Batch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Batch) Reset() {
+	*x = Batch{}
+	mi := &file_worker_worker_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Batch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Batch) ProtoMessage() {}
+
+func (x *Batch) ProtoReflect() protoreflect.Message {
+	mi := &file_worker_worker_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Batch.ProtoReflect.Descriptor instead.
+func (*Batch) Descriptor() ([]byte, []int) {
+	return file_worker_worker_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Batch) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 var File_worker_worker_proto protoreflect.FileDescriptor
 
 const file_worker_worker_proto_rawDesc = "" +
@@ -155,9 +267,17 @@ const file_worker_worker_proto_rawDesc = "" +
 	"\x04plan\x18\x05 \x01(\v2\x10.queng.plan.PlanR\x04plan\"&\n" +
 	"\n" +
 	"TaskResult\x12\x18\n" +
-	"\abatches\x18\x01 \x03(\fR\abatches2H\n" +
+	"\abatches\x18\x01 \x03(\fR\abatches\"\x80\x01\n" +
+	"\x10PartitionRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x19\n" +
+	"\bstage_id\x18\x02 \x01(\x03R\astageId\x12\x17\n" +
+	"\atask_id\x18\x03 \x01(\x03R\x06taskId\x12!\n" +
+	"\fpartition_id\x18\x04 \x01(\x03R\vpartitionId\"\x1b\n" +
+	"\x05Batch\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data2\x90\x01\n" +
 	"\x06Worker\x12>\n" +
-	"\aRunTask\x12\x19.queng.worker.TaskRequest\x1a\x18.queng.worker.TaskResultB(Z&github.com/gabrielelanaro/queng/workerb\x06proto3"
+	"\aRunTask\x12\x19.queng.worker.TaskRequest\x1a\x18.queng.worker.TaskResult\x12F\n" +
+	"\rReadPartition\x12\x1e.queng.worker.PartitionRequest\x1a\x13.queng.worker.Batch0\x01B(Z&github.com/gabrielelanaro/queng/workerb\x06proto3"
 
 var (
 	file_worker_worker_proto_rawDescOnce sync.Once
@@ -171,18 +291,22 @@ func file_worker_worker_proto_rawDescGZIP() []byte {
 	return file_worker_worker_proto_rawDescData
 }
 
-var file_worker_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_worker_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_worker_worker_proto_goTypes = []any{
-	(*TaskRequest)(nil),    // 0: queng.worker.TaskRequest
-	(*TaskResult)(nil),     // 1: queng.worker.TaskResult
-	(*planserde.Plan)(nil), // 2: queng.plan.Plan
+	(*TaskRequest)(nil),      // 0: queng.worker.TaskRequest
+	(*TaskResult)(nil),       // 1: queng.worker.TaskResult
+	(*PartitionRequest)(nil), // 2: queng.worker.PartitionRequest
+	(*Batch)(nil),            // 3: queng.worker.Batch
+	(*planserde.Plan)(nil),   // 4: queng.plan.Plan
 }
 var file_worker_worker_proto_depIdxs = []int32{
-	2, // 0: queng.worker.TaskRequest.plan:type_name -> queng.plan.Plan
+	4, // 0: queng.worker.TaskRequest.plan:type_name -> queng.plan.Plan
 	0, // 1: queng.worker.Worker.RunTask:input_type -> queng.worker.TaskRequest
-	1, // 2: queng.worker.Worker.RunTask:output_type -> queng.worker.TaskResult
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
+	2, // 2: queng.worker.Worker.ReadPartition:input_type -> queng.worker.PartitionRequest
+	1, // 3: queng.worker.Worker.RunTask:output_type -> queng.worker.TaskResult
+	3, // 4: queng.worker.Worker.ReadPartition:output_type -> queng.worker.Batch
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -199,7 +323,7 @@ func file_worker_worker_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_worker_worker_proto_rawDesc), len(file_worker_worker_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

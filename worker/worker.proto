@@ -6,6 +6,7 @@ import "planserde/plan.proto";
 
 service Worker {
   rpc RunTask(TaskRequest) returns (TaskResult);
+  rpc ReadPartition(PartitionRequest) returns (stream Batch);
 }
 
 message TaskRequest {
@@ -18,4 +19,15 @@ message TaskRequest {
 
 message TaskResult {
   repeated bytes batches = 1;
+}
+
+message PartitionRequest {
+  string job_id = 1;
+  int64 stage_id = 2;
+  int64 task_id = 3;
+  int64 partition_id = 4;
+}
+
+message Batch {
+  bytes data = 1;
 }

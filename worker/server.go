@@ -45,3 +45,28 @@ func (s *Server) RunTask(ctx context.Context, request *TaskRequest) (*TaskResult
 	}
 	return response, nil
 }
+
+// ReadPartition streams one producer task's output for a shuffle partition.
+func (s *Server) ReadPartition(request *PartitionRequest, stream Worker_ReadPartitionServer) error {
+	if s.Exchange == nil {
+		return status.Error(codes.FailedPrecondition, "exchange store is not configured")
+	}
+	key := execution.ExchangeKey{
+		JobID: request.GetJobId(), StageID: int(request.GetStageId()),
+		TaskID: int(request.GetTaskId()), PartitionID: int(request.GetPartitionId()),
+	}
+	for batch, err := range s.Exchange.Read(key) {
+		if err != nil {
+			return status.Errorf(codes.Internal, "read exchange: %v", err)
+		}
+		data, err := batchserde.Encode(batch)
+		batch.Release()
+		if err != nil {
+			return status.Errorf(codes.Internal, "encode exchange batch: %v", err)
+		}
+		if err := stream.Send(&Batch{Data: data}); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -2,6 +2,7 @@ package worker_test
 
 import (
 	"context"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -132,5 +133,57 @@ func TestRunTaskReturnsProjectedBatches(t *testing.T) {
 	}
 	if !reflect.DeepEqual(values, []any{int64(10), int64(20)}) {
 		t.Errorf("values = %v; want [10 20]", values)
+	}
+}
+
+func TestReadPartitionStreamsProducerBatches(t *testing.T) {
+	store := distributed.NewMemoryExchange()
+	t.Cleanup(func() { store.Close() })
+	client := startWorker(t, store)
+	writeExchangeBatch(t, store, 7, 1)
+	writeExchangeBatch(t, store, 7, 2)
+	writeExchangeBatch(t, store, 8, 3)
+
+	stream, err := client.ReadPartition(context.Background(), &worker.PartitionRequest{
+		JobId: "job-1", StageId: 3, TaskId: 7, PartitionId: 0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []any
+	for {
+		message, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch, err := batchserde.Decode(message.Data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, batch.Column(0).Value(0))
+		batch.Release()
+	}
+	if !reflect.DeepEqual(ids, []any{int64(1), int64(2)}) {
+		t.Errorf("ids = %v; want [1 2] from task 7", ids)
+	}
+}
+
+func writeExchangeBatch(t *testing.T, store *distributed.MemoryExchange, taskID int, id int64) {
+	t.Helper()
+	column, err := datasource.NewArrowColumn(arrow.PrimitiveTypes.Int64, []any{id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch := datasource.NewRecordBatch(
+		datasource.Schema{Fields: []datasource.Field{{Name: "id", Type: arrow.PrimitiveTypes.Int64}}},
+		[]datasource.ColumnVector{column},
+	)
+	defer batch.Release()
+	key := execution.ExchangeKey{JobID: "job-1", StageID: 3, TaskID: taskID, PartitionID: 0}
+	if err := store.Write(key, batch); err != nil {
+		t.Fatal(err)
 	}
 }
