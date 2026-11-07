@@ -35,6 +35,10 @@ go build -o bin/queng ./cmd/queng
 
 ## Run the distributed join fixture
 
+Tables can use CSV or Parquet files. A Parquet row group is one input partition;
+the file must be accessible at the same path on the coordinator and workers.
+Local multi-partition Parquet queries currently support simple projections.
+
 With Docker and the Compose plugin installed, start one coordinator and two workers:
 
 ```sh

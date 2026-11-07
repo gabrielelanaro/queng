@@ -42,7 +42,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("queng", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	var tableArgs tableFlags
-	flags.Var(&tableArgs, "table", "register a CSV table as name=path (repeatable)")
+	flags.Var(&tableArgs, "table", "register a CSV or Parquet table as name=path (repeatable)")
 	batchSize := flags.Int("batch-size", 1024, "maximum rows per input batch")
 	server := flags.String("server", "", "coordinator URL for distributed execution")
 	if err := flags.Parse(args[1:]); err != nil {
@@ -70,7 +70,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if _, exists := tables[name]; exists {
 			return fmt.Errorf("duplicate table %q", name)
 		}
-		source, err := datasource.NewCSVSource(path, *batchSize)
+		source, err := datasource.NewFileSource(path, *batchSize)
 		if err != nil {
 			return fmt.Errorf("table %q: %w", name, err)
 		}
@@ -89,28 +89,44 @@ func run(args []string, stdout, stderr io.Writer) error {
 	for i, field := range schema.Fields {
 		header[i] = field.Name
 	}
-	var records [][]string
-	for batch, err := range physical.Execute(execution.Context{}, 0) {
-		if err != nil {
-			return err
-		}
-		rows := 0
-		if batch.ColumnCount() > 0 {
-			rows = batch.Column(0).Len()
-		}
-		for row := 0; row < rows; row++ {
-			record := make([]string, batch.ColumnCount())
-			for i := 0; i < batch.ColumnCount(); i++ {
-				value := batch.Column(i).Value(row)
-				if value == nil {
-					record[i] = "NULL"
-				} else {
-					record[i] = fmt.Sprint(value)
-				}
+	partitionCount := 1
+	for _, source := range tables {
+		if source.PartitionCount() > 1 {
+			projection, ok := physical.(physicalplan.ProjectionExec)
+			if !ok {
+				return fmt.Errorf("local execution of this query over multiple partitions is not supported")
 			}
-			records = append(records, record)
+			scan, ok := projection.Input.(physicalplan.ScanExec)
+			if !ok {
+				return fmt.Errorf("local execution of this query over multiple partitions is not supported")
+			}
+			partitionCount = scan.Source.PartitionCount()
 		}
-		batch.Release()
+	}
+	var records [][]string
+	for partition := range partitionCount {
+		for batch, err := range physical.Execute(execution.Context{}, partition) {
+			if err != nil {
+				return err
+			}
+			rows := 0
+			if batch.ColumnCount() > 0 {
+				rows = batch.Column(0).Len()
+			}
+			for row := 0; row < rows; row++ {
+				record := make([]string, batch.ColumnCount())
+				for i := 0; i < batch.ColumnCount(); i++ {
+					value := batch.Column(i).Value(row)
+					if value == nil {
+						record[i] = "NULL"
+					} else {
+						record[i] = fmt.Sprint(value)
+					}
+				}
+				records = append(records, record)
+			}
+			batch.Release()
+		}
 	}
 	return writeTable(stdout, header, records)
 }

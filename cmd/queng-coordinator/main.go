@@ -41,7 +41,7 @@ func main() {
 	workerAddresses := flag.String("workers", "localhost:9001,localhost:9002", "comma-separated worker addresses")
 	partitions := flag.Int("shuffle-partitions", 2, "number of shuffle partitions")
 	var tableArgs tablesFlag
-	flag.Var(&tableArgs, "table", "CSV table as name=path (repeatable)")
+	flag.Var(&tableArgs, "table", "CSV or Parquet table as name=path (repeatable)")
 	flag.Parse()
 	tables := make(map[string]datasource.DataSource)
 	for _, arg := range tableArgs {
@@ -49,7 +49,7 @@ func main() {
 		if !ok || name == "" || path == "" {
 			log.Fatalf("invalid table %q", arg)
 		}
-		source, err := datasource.NewCSVSource(path, 1024)
+		source, err := datasource.NewFileSource(path, 1024)
 		if err != nil {
 			log.Fatalf("table %s: %v", name, err)
 		}

@@ -4,9 +4,14 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/apache/arrow-go/v18/arrow"
+	"github.com/apache/arrow-go/v18/arrow/array"
+	"github.com/apache/arrow-go/v18/arrow/memory"
+	"github.com/apache/arrow-go/v18/parquet"
+	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 	"github.com/gabrielelanaro/queng/datasource"
 	"github.com/gabrielelanaro/queng/distributed"
 	"github.com/gabrielelanaro/queng/execution"
@@ -155,5 +160,67 @@ func TestRoundTripGroupedAverage(t *testing.T) {
 	}
 	if !reflect.DeepEqual(values, []any{"fruit", float64(15)}) {
 		t.Errorf("values = %v; want [fruit 15]", values)
+	}
+}
+
+func TestRoundTripParquetScan(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "inventory.parquet")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema := arrow.NewSchema([]arrow.Field{{Name: "price", Type: arrow.PrimitiveTypes.Int64}}, nil)
+	writer, err := pqarrow.NewFileWriter(schema, f, parquet.NewWriterProperties(), pqarrow.DefaultWriterProps())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, data := range []string{`[{"price":10}]`, `[{"price":20}]`} {
+		record, _, err := array.RecordFromJSON(memory.DefaultAllocator, schema, strings.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = writer.Write(record)
+		record.Release()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	source, err := datasource.NewParquetSource(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := planserde.SerializePlan(physicalplan.ScanExec{Source: source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire, err := proto.Marshal(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var message planserde.Plan
+	if err := proto.Unmarshal(wire, &message); err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := planserde.DeserializePlan(&message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scan := decoded.(physicalplan.ScanExec)
+	if scan.Source.PartitionCount() != 2 {
+		t.Fatalf("partition count = %d; want 2", scan.Source.PartitionCount())
+	}
+	var values []any
+	for batch, err := range scan.Source.Scan(1) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		values = append(values, batch.Column(0).Value(0))
+		batch.Release()
+	}
+	if !reflect.DeepEqual(values, []any{int64(20)}) {
+		t.Errorf("partition 1 = %v; want [20]", values)
 	}
 }

@@ -16,7 +16,8 @@ message Schema { repeated Field fields = 1; }
 message Field { string name = 1; string qualifier = 2; DataType type = 3; }
 enum DataType { DATA_TYPE_UNSPECIFIED = 0; INT64 = 1; FLOAT64 = 2; STRING = 3; BOOL = 4; }
 message CsvSource { string path = 1; int64 batch_size = 2; Schema schema = 3; }
-message Scan { CsvSource csv = 1; Schema output_schema = 2; }
+message ParquetSource { string path = 1; Schema schema = 2; int64 row_groups = 3; }
+message Scan { CsvSource csv = 1; Schema output_schema = 2; ParquetSource parquet = 3; }
 message Expression { oneof node { Column column = 1; } }
 message Column { int64 index = 1; }
 message Projection { Plan input = 1; Schema output_schema = 2; repeated Expression expressions = 3; }

@@ -149,6 +149,9 @@ func formatStages(stages []progressStage, spinner string) string {
 		if stage.Status == "failed" {
 			symbol = "✕"
 		}
+		if stage.TaskCount > 0 {
+			symbol = fmt.Sprintf("%s %d/%d", symbol, stage.CompletedTasks, stage.TaskCount)
+		}
 		groups[n] = append(groups[n], symbol)
 	}
 	result := make([]string, 0, max+1)

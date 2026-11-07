@@ -16,11 +16,7 @@ import (
 func SerializePlan(plan physicalplan.PhysicalPlan) (*Plan, error) {
 	switch p := plan.(type) {
 	case physicalplan.ScanExec:
-		source, ok := p.Source.(*datasource.CSVSource)
-		if !ok || source == nil {
-			return nil, fmt.Errorf("unsupported data source: %T", p.Source)
-		}
-		sourceSchema, err := encodeSchema(source.Schema())
+		sourceSchema, err := encodeSchema(p.Source.Schema())
 		if err != nil {
 			return nil, err
 		}
@@ -31,7 +27,16 @@ func SerializePlan(plan physicalplan.PhysicalPlan) (*Plan, error) {
 				return nil, err
 			}
 		}
-		return &Plan{Node: &Plan_Scan{Scan: &Scan{Csv: &CsvSource{Path: source.Path(), BatchSize: int64(source.BatchSize()), Schema: sourceSchema}, OutputSchema: output}}}, nil
+		scan := &Scan{OutputSchema: output}
+		switch source := p.Source.(type) {
+		case *datasource.CSVSource:
+			scan.Csv = &CsvSource{Path: source.Path(), BatchSize: int64(source.BatchSize()), Schema: sourceSchema}
+		case *datasource.ParquetSource:
+			scan.Parquet = &ParquetSource{Path: source.Path(), Schema: sourceSchema, RowGroups: int64(source.PartitionCount())}
+		default:
+			return nil, fmt.Errorf("unsupported data source: %T", p.Source)
+		}
+		return &Plan{Node: &Plan_Scan{Scan: scan}}, nil
 	case physicalplan.ProjectionExec:
 		input, err := SerializePlan(p.Input)
 		if err != nil {
@@ -164,20 +169,34 @@ func DeserializePlan(plan *Plan) (physicalplan.PhysicalPlan, error) {
 	}
 	switch p := plan.Node.(type) {
 	case *Plan_Scan:
-		if p.Scan == nil || p.Scan.Csv == nil {
-			return nil, fmt.Errorf("missing CSV source")
+		if p.Scan == nil {
+			return nil, fmt.Errorf("missing scan")
 		}
-		csv := p.Scan.Csv
-		source, err := datasource.NewCSVSource(csv.Path, int(csv.BatchSize))
+		var source datasource.DataSource
+		var expectedSchema *Schema
+		var err error
+		switch {
+		case p.Scan.Csv != nil && p.Scan.Parquet == nil:
+			source, err = datasource.NewCSVSource(p.Scan.Csv.Path, int(p.Scan.Csv.BatchSize))
+			expectedSchema = p.Scan.Csv.Schema
+		case p.Scan.Parquet != nil && p.Scan.Csv == nil:
+			source, err = datasource.NewParquetSource(p.Scan.Parquet.Path)
+			expectedSchema = p.Scan.Parquet.Schema
+			if err == nil && int64(source.PartitionCount()) != p.Scan.Parquet.RowGroups {
+				return nil, fmt.Errorf("Parquet row group count changed")
+			}
+		default:
+			return nil, fmt.Errorf("scan requires exactly one data source")
+		}
 		if err != nil {
 			return nil, err
 		}
-		expected, err := decodeSchema(csv.Schema)
+		expected, err := decodeSchema(expectedSchema)
 		if err != nil {
 			return nil, err
 		}
 		if !reflect.DeepEqual(source.Schema(), expected) {
-			return nil, fmt.Errorf("CSV schema changed for %q", csv.Path)
+			return nil, fmt.Errorf("data source schema changed")
 		}
 		var output datasource.Schema
 		if p.Scan.OutputSchema != nil {

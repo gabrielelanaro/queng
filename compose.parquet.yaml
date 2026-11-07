@@ -1,0 +1,3 @@
+services:
+  coordinator:
+    command: ["queng-coordinator", "--workers=worker-a:9001,worker-b:9001", "--table=sales=/data/generated/sales.parquet", "--table=products=/data/generated/products.parquet"]
