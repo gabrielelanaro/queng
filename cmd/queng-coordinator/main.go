@@ -87,6 +87,9 @@ func main() {
 	}()
 	defer server.Stop()
 	http.HandleFunc("/query", queryHandler(scheduler, tables))
+	jobs := newJobRegistry(scheduler, tables)
+	http.HandleFunc("/queries", jobs.submit)
+	http.HandleFunc("/queries/", jobs.get)
 	log.Printf("coordinator tracker on %s; query endpoint on %s", *grpcAddress, *httpAddress)
 	log.Fatal(http.ListenAndServe(*httpAddress, nil))
 }

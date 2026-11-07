@@ -62,3 +62,12 @@ docker compose down
 ```
 
 The containers run on a single host, but have separate processes and memory. They exercise the scheduler, gRPC calls, and exchange; they do not require a distributed filesystem.
+
+To submit a query asynchronously, POST it to `/queries` and use the returned job ID to check its status and result:
+
+```sh
+curl -fsS -X POST http://localhost:8080/queries --data 'SELECT sale FROM sales'
+curl -fsS http://localhost:8080/queries/JOB_ID
+```
+
+Use a table configured on the coordinator (the Compose fixture provides `sales` and `products`). Jobs and results are currently kept in memory until the coordinator stops.
