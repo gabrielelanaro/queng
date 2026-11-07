@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/gabrielelanaro/queng/batchserde"
 	"github.com/gabrielelanaro/queng/planserde"
@@ -24,12 +25,30 @@ func (e RemoteExecutor) Submit(ctx context.Context, task Task) <-chan TaskResult
 			result <- TaskResult{Err: fmt.Errorf("serialize plan: %w", err)}
 			return
 		}
-		response, err := e.Client.RunTask(ctx, &workerapi.TaskRequest{
-			JobId: task.JobID, TaskId: int64(task.ID), PartitionId: int64(task.PartitionID),
+		stream, err := e.Client.RunTask(ctx, &workerapi.TaskRequest{
+			JobId: task.JobID, TaskId: int64(task.ID), StageId: int64(task.Stage.ID), PartitionId: int64(task.PartitionID),
 			ShufflePartitions: int64(e.ShufflePartitions), Plan: plan,
 		})
 		if err != nil {
 			result <- TaskResult{Err: fmt.Errorf("run remote task: %w", err)}
+			return
+		}
+		var response *workerapi.TaskResult
+		for {
+			message, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				result <- TaskResult{Err: fmt.Errorf("run remote task: %w", err)}
+				return
+			}
+			if message.GetResult() != nil {
+				response = message.GetResult()
+			}
+		}
+		if response == nil {
+			result <- TaskResult{Err: fmt.Errorf("remote task returned no result")}
 			return
 		}
 		var taskResult TaskResult

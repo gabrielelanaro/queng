@@ -3,9 +3,11 @@ package queng.worker;
 option go_package = "github.com/gabrielelanaro/queng/workerapi";
 
 import "planserde/plan.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
 
 service Worker {
-  rpc RunTask(TaskRequest) returns (TaskResult);
+  rpc RunTask(TaskRequest) returns (stream TaskMessage);
   rpc ReadPartition(PartitionRequest) returns (stream Batch);
 }
 
@@ -15,6 +17,27 @@ message TaskRequest {
   int64 partition_id = 3;
   int64 shuffle_partitions = 4;
   queng.plan.Plan plan = 5;
+  int64 stage_id = 6;
+}
+
+message TaskMessage {
+  oneof payload {
+    TaskEvent event = 1;
+    TaskResult result = 2;
+  }
+}
+
+message TaskEvent {
+  google.protobuf.Timestamp time = 1;
+  oneof event {
+    TaskStarted started = 2;
+    TaskCompleted completed = 3;
+  }
+}
+
+message TaskStarted {}
+message TaskCompleted {
+  google.protobuf.Duration duration = 1;
 }
 
 message TaskResult {

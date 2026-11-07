@@ -2,7 +2,6 @@
 package worker
 
 import (
-	"context"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -15,6 +14,8 @@ import (
 	"github.com/gabrielelanaro/queng/workerapi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Server executes tasks using its local exchange store.
@@ -23,22 +24,26 @@ type Server struct {
 	Exchange execution.ExchangeStore
 }
 
-func (s *Server) RunTask(ctx context.Context, request *workerapi.TaskRequest) (*workerapi.TaskResult, error) {
-	started := time.Now()
+func (s *Server) RunTask(request *workerapi.TaskRequest, stream workerapi.Worker_RunTaskServer) error {
+	ctx := stream.Context()
 	log.Info().Str("job", request.GetJobId()).Int64("task", request.GetTaskId()).Int64("partition", request.GetPartitionId()).Msg("task started")
 	if request.GetShufflePartitions() < 1 {
-		return nil, status.Error(codes.InvalidArgument, "shuffle partition count must be positive")
+		return status.Error(codes.InvalidArgument, "shuffle partition count must be positive")
 	}
 	plan, err := planserde.DeserializePlan(request.GetPlan())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "deserialize plan: %v", err)
+		return status.Errorf(codes.InvalidArgument, "deserialize plan: %v", err)
+	}
+	started := time.Now()
+	if err := stream.Send(&workerapi.TaskMessage{Payload: &workerapi.TaskMessage_Event{Event: &workerapi.TaskEvent{Time: timestamppb.New(started), Event: &workerapi.TaskEvent_Started{Started: &workerapi.TaskStarted{}}}}}); err != nil {
+		return err
 	}
 	localExecutor := executor.LocalExecutor{Exchange: s.Exchange, ShufflePartitions: int(request.GetShufflePartitions())}
 	task := executor.Task{JobID: request.GetJobId(), ID: int(request.GetTaskId()), PartitionID: int(request.GetPartitionId()), Stage: distributed.Stage{Plan: plan}}
 	result := <-localExecutor.Submit(ctx, task)
 	if result.Err != nil {
 		log.Error().Err(result.Err).Str("job", request.GetJobId()).Int64("task", request.GetTaskId()).Msg("task failed")
-		return nil, status.Errorf(codes.Internal, "execute task: %v", result.Err)
+		return status.Errorf(codes.Internal, "execute task: %v", result.Err)
 	}
 	response := &workerapi.TaskResult{}
 	for _, batch := range result.Batches {
@@ -47,12 +52,15 @@ func (s *Server) RunTask(ctx context.Context, request *workerapi.TaskRequest) (*
 	for _, batch := range result.Batches {
 		data, err := batchserde.Encode(batch)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "encode result batch: %v", err)
+			return status.Errorf(codes.Internal, "encode result batch: %v", err)
 		}
 		response.Batches = append(response.Batches, data)
 	}
 	log.Info().Str("job", request.GetJobId()).Int64("task", request.GetTaskId()).Dur("duration", time.Since(started)).Msg("task completed")
-	return response, nil
+	if err := stream.Send(&workerapi.TaskMessage{Payload: &workerapi.TaskMessage_Event{Event: &workerapi.TaskEvent{Time: timestamppb.Now(), Event: &workerapi.TaskEvent_Completed{Completed: &workerapi.TaskCompleted{Duration: durationpb.New(time.Since(started))}}}}}); err != nil {
+		return err
+	}
+	return stream.Send(&workerapi.TaskMessage{Payload: &workerapi.TaskMessage_Result{Result: response}})
 }
 
 // ReadPartition streams one producer task's output for a shuffle partition.

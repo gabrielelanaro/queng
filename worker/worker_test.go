@@ -58,13 +58,37 @@ func startWorker(t *testing.T, store *distributed.MemoryExchange) workerapi.Work
 	return workerapi.NewWorkerClient(conn)
 }
 
+func runTask(client workerapi.WorkerClient, request *workerapi.TaskRequest) (*workerapi.TaskResult, []*workerapi.TaskEvent, error) {
+	stream, err := client.RunTask(context.Background(), request)
+	if err != nil {
+		return nil, nil, err
+	}
+	var result *workerapi.TaskResult
+	var events []*workerapi.TaskEvent
+	for {
+		message, err := stream.Recv()
+		if err == io.EOF {
+			return result, events, nil
+		}
+		if err != nil {
+			return nil, events, err
+		}
+		if event := message.GetEvent(); event != nil {
+			events = append(events, event)
+		}
+		if message.GetResult() != nil {
+			result = message.GetResult()
+		}
+	}
+}
+
 func TestRunTaskWritesExchangeOutput(t *testing.T) {
 	plan := makeExchangePlan(t)
 	store := distributed.NewMemoryExchange()
 	t.Cleanup(func() { store.Close() })
 	client := startWorker(t, store)
 
-	_, err := client.RunTask(context.Background(), &workerapi.TaskRequest{JobId: "job-1", TaskId: 7, PartitionId: 0, ShufflePartitions: 2, Plan: plan})
+	_, _, err := runTask(client, &workerapi.TaskRequest{JobId: "job-1", TaskId: 7, PartitionId: 0, ShufflePartitions: 2, Plan: plan})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,11 +110,49 @@ func TestRunTaskWritesExchangeOutput(t *testing.T) {
 		t.Errorf("ids = %v; want [1 2]", ids)
 	}
 
-	_, err = client.RunTask(context.Background(), &workerapi.TaskRequest{
+	_, _, err = runTask(client, &workerapi.TaskRequest{
 		JobId: "job-1", TaskId: 8, PartitionId: 1, ShufflePartitions: 2, Plan: plan,
 	})
 	if status.Code(err) != codes.Internal {
 		t.Errorf("invalid input partition returned %v; want execution error", err)
+	}
+}
+
+func TestRunTaskStreamsEvents(t *testing.T) {
+	store := distributed.NewMemoryExchange()
+	t.Cleanup(func() { store.Close() })
+	client := startWorker(t, store)
+	stream, err := client.RunTask(context.Background(), &workerapi.TaskRequest{JobId: "job-1", ShufflePartitions: 2, Plan: makeExchangePlan(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := stream.Recv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.GetEvent().GetStarted() == nil || started.GetEvent().GetTime() == nil || started.GetEvent().GetTime().CheckValid() != nil {
+		t.Fatalf("first message = %v; want timestamped start event", started)
+	}
+	completed, err := stream.Recv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := completed.GetEvent()
+	if event.GetCompleted() == nil || event.GetTime() == nil || event.GetTime().CheckValid() != nil {
+		t.Fatalf("second message = %v; want timestamped completion event", completed)
+	}
+	if d := event.GetCompleted().GetDuration(); d == nil || d.CheckValid() != nil || d.AsDuration() < 0 {
+		t.Fatal("invalid completion duration")
+	}
+	result, err := stream.Recv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.GetResult() == nil {
+		t.Fatalf("third message = %v; want result", result)
+	}
+	if _, err := stream.Recv(); err != io.EOF {
+		t.Fatalf("stream end = %v; want EOF", err)
 	}
 }
 
@@ -113,7 +175,7 @@ func TestRunTaskReturnsProjectedBatches(t *testing.T) {
 	store := distributed.NewMemoryExchange()
 	t.Cleanup(func() { store.Close() })
 	client := startWorker(t, store)
-	result, err := client.RunTask(context.Background(), &workerapi.TaskRequest{
+	result, _, err := runTask(client, &workerapi.TaskRequest{
 		JobId: "job-1", ShufflePartitions: 2, Plan: plan,
 	})
 	if err != nil {

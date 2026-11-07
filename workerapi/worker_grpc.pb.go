@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type WorkerClient interface {
-	RunTask(ctx context.Context, in *TaskRequest, opts ...grpc.CallOption) (*TaskResult, error)
+	RunTask(ctx context.Context, in *TaskRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TaskMessage], error)
 	ReadPartition(ctx context.Context, in *PartitionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Batch], error)
 }
 
@@ -39,19 +39,28 @@ func NewWorkerClient(cc grpc.ClientConnInterface) WorkerClient {
 	return &workerClient{cc}
 }
 
-func (c *workerClient) RunTask(ctx context.Context, in *TaskRequest, opts ...grpc.CallOption) (*TaskResult, error) {
+func (c *workerClient) RunTask(ctx context.Context, in *TaskRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TaskMessage], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(TaskResult)
-	err := c.cc.Invoke(ctx, Worker_RunTask_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Worker_ServiceDesc.Streams[0], Worker_RunTask_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &grpc.GenericClientStream[TaskRequest, TaskMessage]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Worker_RunTaskClient = grpc.ServerStreamingClient[TaskMessage]
 
 func (c *workerClient) ReadPartition(ctx context.Context, in *PartitionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Batch], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Worker_ServiceDesc.Streams[0], Worker_ReadPartition_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Worker_ServiceDesc.Streams[1], Worker_ReadPartition_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +81,7 @@ type Worker_ReadPartitionClient = grpc.ServerStreamingClient[Batch]
 // All implementations must embed UnimplementedWorkerServer
 // for forward compatibility.
 type WorkerServer interface {
-	RunTask(context.Context, *TaskRequest) (*TaskResult, error)
+	RunTask(*TaskRequest, grpc.ServerStreamingServer[TaskMessage]) error
 	ReadPartition(*PartitionRequest, grpc.ServerStreamingServer[Batch]) error
 	mustEmbedUnimplementedWorkerServer()
 }
@@ -84,8 +93,8 @@ type WorkerServer interface {
 // pointer dereference when methods are called.
 type UnimplementedWorkerServer struct{}
 
-func (UnimplementedWorkerServer) RunTask(context.Context, *TaskRequest) (*TaskResult, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RunTask not implemented")
+func (UnimplementedWorkerServer) RunTask(*TaskRequest, grpc.ServerStreamingServer[TaskMessage]) error {
+	return status.Errorf(codes.Unimplemented, "method RunTask not implemented")
 }
 func (UnimplementedWorkerServer) ReadPartition(*PartitionRequest, grpc.ServerStreamingServer[Batch]) error {
 	return status.Errorf(codes.Unimplemented, "method ReadPartition not implemented")
@@ -111,23 +120,16 @@ func RegisterWorkerServer(s grpc.ServiceRegistrar, srv WorkerServer) {
 	s.RegisterService(&Worker_ServiceDesc, srv)
 }
 
-func _Worker_RunTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TaskRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _Worker_RunTask_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(TaskRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(WorkerServer).RunTask(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Worker_RunTask_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WorkerServer).RunTask(ctx, req.(*TaskRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(WorkerServer).RunTask(m, &grpc.GenericServerStream[TaskRequest, TaskMessage]{ServerStream: stream})
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Worker_RunTaskServer = grpc.ServerStreamingServer[TaskMessage]
 
 func _Worker_ReadPartition_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(PartitionRequest)
@@ -146,13 +148,13 @@ type Worker_ReadPartitionServer = grpc.ServerStreamingServer[Batch]
 var Worker_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "queng.worker.Worker",
 	HandlerType: (*WorkerServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "RunTask",
-			Handler:    _Worker_RunTask_Handler,
-		},
-	},
+	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "RunTask",
+			Handler:       _Worker_RunTask_Handler,
+			ServerStreams: true,
+		},
 		{
 			StreamName:    "ReadPartition",
 			Handler:       _Worker_ReadPartition_Handler,

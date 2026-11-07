@@ -73,7 +73,12 @@ func TestCancelTaskCancelsExchangeLookup(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := workerapi.NewWorkerClient(workerConn).RunTask(ctx, &workerapi.TaskRequest{JobId: "job", ShufflePartitions: 1, Plan: plan})
+		stream, err := workerapi.NewWorkerClient(workerConn).RunTask(ctx, &workerapi.TaskRequest{JobId: "job", ShufflePartitions: 1, Plan: plan})
+		if err == nil {
+			for err == nil {
+				_, err = stream.Recv()
+			}
+		}
 		done <- err
 	}()
 	select {

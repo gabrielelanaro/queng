@@ -10,6 +10,8 @@ import (
 	planserde "github.com/gabrielelanaro/queng/planserde"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -29,6 +31,7 @@ type TaskRequest struct {
 	PartitionId       int64                  `protobuf:"varint,3,opt,name=partition_id,json=partitionId,proto3" json:"partition_id,omitempty"`
 	ShufflePartitions int64                  `protobuf:"varint,4,opt,name=shuffle_partitions,json=shufflePartitions,proto3" json:"shuffle_partitions,omitempty"`
 	Plan              *planserde.Plan        `protobuf:"bytes,5,opt,name=plan,proto3" json:"plan,omitempty"`
+	StageId           int64                  `protobuf:"varint,6,opt,name=stage_id,json=stageId,proto3" json:"stage_id,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -98,6 +101,265 @@ func (x *TaskRequest) GetPlan() *planserde.Plan {
 	return nil
 }
 
+func (x *TaskRequest) GetStageId() int64 {
+	if x != nil {
+		return x.StageId
+	}
+	return 0
+}
+
+type TaskMessage struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*TaskMessage_Event
+	//	*TaskMessage_Result
+	Payload       isTaskMessage_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TaskMessage) Reset() {
+	*x = TaskMessage{}
+	mi := &file_workerapi_worker_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaskMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaskMessage) ProtoMessage() {}
+
+func (x *TaskMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_workerapi_worker_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaskMessage.ProtoReflect.Descriptor instead.
+func (*TaskMessage) Descriptor() ([]byte, []int) {
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *TaskMessage) GetPayload() isTaskMessage_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *TaskMessage) GetEvent() *TaskEvent {
+	if x != nil {
+		if x, ok := x.Payload.(*TaskMessage_Event); ok {
+			return x.Event
+		}
+	}
+	return nil
+}
+
+func (x *TaskMessage) GetResult() *TaskResult {
+	if x != nil {
+		if x, ok := x.Payload.(*TaskMessage_Result); ok {
+			return x.Result
+		}
+	}
+	return nil
+}
+
+type isTaskMessage_Payload interface {
+	isTaskMessage_Payload()
+}
+
+type TaskMessage_Event struct {
+	Event *TaskEvent `protobuf:"bytes,1,opt,name=event,proto3,oneof"`
+}
+
+type TaskMessage_Result struct {
+	Result *TaskResult `protobuf:"bytes,2,opt,name=result,proto3,oneof"`
+}
+
+func (*TaskMessage_Event) isTaskMessage_Payload() {}
+
+func (*TaskMessage_Result) isTaskMessage_Payload() {}
+
+type TaskEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Time  *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=time,proto3" json:"time,omitempty"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*TaskEvent_Started
+	//	*TaskEvent_Completed
+	Event         isTaskEvent_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TaskEvent) Reset() {
+	*x = TaskEvent{}
+	mi := &file_workerapi_worker_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaskEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaskEvent) ProtoMessage() {}
+
+func (x *TaskEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_workerapi_worker_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaskEvent.ProtoReflect.Descriptor instead.
+func (*TaskEvent) Descriptor() ([]byte, []int) {
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *TaskEvent) GetTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Time
+	}
+	return nil
+}
+
+func (x *TaskEvent) GetEvent() isTaskEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *TaskEvent) GetStarted() *TaskStarted {
+	if x != nil {
+		if x, ok := x.Event.(*TaskEvent_Started); ok {
+			return x.Started
+		}
+	}
+	return nil
+}
+
+func (x *TaskEvent) GetCompleted() *TaskCompleted {
+	if x != nil {
+		if x, ok := x.Event.(*TaskEvent_Completed); ok {
+			return x.Completed
+		}
+	}
+	return nil
+}
+
+type isTaskEvent_Event interface {
+	isTaskEvent_Event()
+}
+
+type TaskEvent_Started struct {
+	Started *TaskStarted `protobuf:"bytes,2,opt,name=started,proto3,oneof"`
+}
+
+type TaskEvent_Completed struct {
+	Completed *TaskCompleted `protobuf:"bytes,3,opt,name=completed,proto3,oneof"`
+}
+
+func (*TaskEvent_Started) isTaskEvent_Event() {}
+
+func (*TaskEvent_Completed) isTaskEvent_Event() {}
+
+type TaskStarted struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TaskStarted) Reset() {
+	*x = TaskStarted{}
+	mi := &file_workerapi_worker_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaskStarted) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaskStarted) ProtoMessage() {}
+
+func (x *TaskStarted) ProtoReflect() protoreflect.Message {
+	mi := &file_workerapi_worker_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaskStarted.ProtoReflect.Descriptor instead.
+func (*TaskStarted) Descriptor() ([]byte, []int) {
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{3}
+}
+
+type TaskCompleted struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Duration      *durationpb.Duration   `protobuf:"bytes,1,opt,name=duration,proto3" json:"duration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TaskCompleted) Reset() {
+	*x = TaskCompleted{}
+	mi := &file_workerapi_worker_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaskCompleted) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaskCompleted) ProtoMessage() {}
+
+func (x *TaskCompleted) ProtoReflect() protoreflect.Message {
+	mi := &file_workerapi_worker_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaskCompleted.ProtoReflect.Descriptor instead.
+func (*TaskCompleted) Descriptor() ([]byte, []int) {
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *TaskCompleted) GetDuration() *durationpb.Duration {
+	if x != nil {
+		return x.Duration
+	}
+	return nil
+}
+
 type TaskResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Batches       [][]byte               `protobuf:"bytes,1,rep,name=batches,proto3" json:"batches,omitempty"`
@@ -107,7 +369,7 @@ type TaskResult struct {
 
 func (x *TaskResult) Reset() {
 	*x = TaskResult{}
-	mi := &file_workerapi_worker_proto_msgTypes[1]
+	mi := &file_workerapi_worker_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -119,7 +381,7 @@ func (x *TaskResult) String() string {
 func (*TaskResult) ProtoMessage() {}
 
 func (x *TaskResult) ProtoReflect() protoreflect.Message {
-	mi := &file_workerapi_worker_proto_msgTypes[1]
+	mi := &file_workerapi_worker_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -132,7 +394,7 @@ func (x *TaskResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskResult.ProtoReflect.Descriptor instead.
 func (*TaskResult) Descriptor() ([]byte, []int) {
-	return file_workerapi_worker_proto_rawDescGZIP(), []int{1}
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *TaskResult) GetBatches() [][]byte {
@@ -154,7 +416,7 @@ type PartitionRequest struct {
 
 func (x *PartitionRequest) Reset() {
 	*x = PartitionRequest{}
-	mi := &file_workerapi_worker_proto_msgTypes[2]
+	mi := &file_workerapi_worker_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -166,7 +428,7 @@ func (x *PartitionRequest) String() string {
 func (*PartitionRequest) ProtoMessage() {}
 
 func (x *PartitionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_workerapi_worker_proto_msgTypes[2]
+	mi := &file_workerapi_worker_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -179,7 +441,7 @@ func (x *PartitionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartitionRequest.ProtoReflect.Descriptor instead.
 func (*PartitionRequest) Descriptor() ([]byte, []int) {
-	return file_workerapi_worker_proto_rawDescGZIP(), []int{2}
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *PartitionRequest) GetJobId() string {
@@ -219,7 +481,7 @@ type Batch struct {
 
 func (x *Batch) Reset() {
 	*x = Batch{}
-	mi := &file_workerapi_worker_proto_msgTypes[3]
+	mi := &file_workerapi_worker_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -231,7 +493,7 @@ func (x *Batch) String() string {
 func (*Batch) ProtoMessage() {}
 
 func (x *Batch) ProtoReflect() protoreflect.Message {
-	mi := &file_workerapi_worker_proto_msgTypes[3]
+	mi := &file_workerapi_worker_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -244,7 +506,7 @@ func (x *Batch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Batch.ProtoReflect.Descriptor instead.
 func (*Batch) Descriptor() ([]byte, []int) {
-	return file_workerapi_worker_proto_rawDescGZIP(), []int{3}
+	return file_workerapi_worker_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Batch) GetData() []byte {
@@ -258,13 +520,26 @@ var File_workerapi_worker_proto protoreflect.FileDescriptor
 
 const file_workerapi_worker_proto_rawDesc = "" +
 	"\n" +
-	"\x16workerapi/worker.proto\x12\fqueng.worker\x1a\x14planserde/plan.proto\"\xb5\x01\n" +
+	"\x16workerapi/worker.proto\x12\fqueng.worker\x1a\x14planserde/plan.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\"\xd0\x01\n" +
 	"\vTaskRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\x03R\x06taskId\x12!\n" +
 	"\fpartition_id\x18\x03 \x01(\x03R\vpartitionId\x12-\n" +
 	"\x12shuffle_partitions\x18\x04 \x01(\x03R\x11shufflePartitions\x12$\n" +
-	"\x04plan\x18\x05 \x01(\v2\x10.queng.plan.PlanR\x04plan\"&\n" +
+	"\x04plan\x18\x05 \x01(\v2\x10.queng.plan.PlanR\x04plan\x12\x19\n" +
+	"\bstage_id\x18\x06 \x01(\x03R\astageId\"}\n" +
+	"\vTaskMessage\x12/\n" +
+	"\x05event\x18\x01 \x01(\v2\x17.queng.worker.TaskEventH\x00R\x05event\x122\n" +
+	"\x06result\x18\x02 \x01(\v2\x18.queng.worker.TaskResultH\x00R\x06resultB\t\n" +
+	"\apayload\"\xb8\x01\n" +
+	"\tTaskEvent\x12.\n" +
+	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x125\n" +
+	"\astarted\x18\x02 \x01(\v2\x19.queng.worker.TaskStartedH\x00R\astarted\x12;\n" +
+	"\tcompleted\x18\x03 \x01(\v2\x1b.queng.worker.TaskCompletedH\x00R\tcompletedB\a\n" +
+	"\x05event\"\r\n" +
+	"\vTaskStarted\"F\n" +
+	"\rTaskCompleted\x125\n" +
+	"\bduration\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\bduration\"&\n" +
 	"\n" +
 	"TaskResult\x12\x18\n" +
 	"\abatches\x18\x01 \x03(\fR\abatches\"\x80\x01\n" +
@@ -274,9 +549,9 @@ const file_workerapi_worker_proto_rawDesc = "" +
 	"\atask_id\x18\x03 \x01(\x03R\x06taskId\x12!\n" +
 	"\fpartition_id\x18\x04 \x01(\x03R\vpartitionId\"\x1b\n" +
 	"\x05Batch\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data2\x90\x01\n" +
-	"\x06Worker\x12>\n" +
-	"\aRunTask\x12\x19.queng.worker.TaskRequest\x1a\x18.queng.worker.TaskResult\x12F\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data2\x93\x01\n" +
+	"\x06Worker\x12A\n" +
+	"\aRunTask\x12\x19.queng.worker.TaskRequest\x1a\x19.queng.worker.TaskMessage0\x01\x12F\n" +
 	"\rReadPartition\x12\x1e.queng.worker.PartitionRequest\x1a\x13.queng.worker.Batch0\x01B+Z)github.com/gabrielelanaro/queng/workerapib\x06proto3"
 
 var (
@@ -291,25 +566,37 @@ func file_workerapi_worker_proto_rawDescGZIP() []byte {
 	return file_workerapi_worker_proto_rawDescData
 }
 
-var file_workerapi_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_workerapi_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_workerapi_worker_proto_goTypes = []any{
-	(*TaskRequest)(nil),      // 0: queng.worker.TaskRequest
-	(*TaskResult)(nil),       // 1: queng.worker.TaskResult
-	(*PartitionRequest)(nil), // 2: queng.worker.PartitionRequest
-	(*Batch)(nil),            // 3: queng.worker.Batch
-	(*planserde.Plan)(nil),   // 4: queng.plan.Plan
+	(*TaskRequest)(nil),           // 0: queng.worker.TaskRequest
+	(*TaskMessage)(nil),           // 1: queng.worker.TaskMessage
+	(*TaskEvent)(nil),             // 2: queng.worker.TaskEvent
+	(*TaskStarted)(nil),           // 3: queng.worker.TaskStarted
+	(*TaskCompleted)(nil),         // 4: queng.worker.TaskCompleted
+	(*TaskResult)(nil),            // 5: queng.worker.TaskResult
+	(*PartitionRequest)(nil),      // 6: queng.worker.PartitionRequest
+	(*Batch)(nil),                 // 7: queng.worker.Batch
+	(*planserde.Plan)(nil),        // 8: queng.plan.Plan
+	(*timestamppb.Timestamp)(nil), // 9: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),   // 10: google.protobuf.Duration
 }
 var file_workerapi_worker_proto_depIdxs = []int32{
-	4, // 0: queng.worker.TaskRequest.plan:type_name -> queng.plan.Plan
-	0, // 1: queng.worker.Worker.RunTask:input_type -> queng.worker.TaskRequest
-	2, // 2: queng.worker.Worker.ReadPartition:input_type -> queng.worker.PartitionRequest
-	1, // 3: queng.worker.Worker.RunTask:output_type -> queng.worker.TaskResult
-	3, // 4: queng.worker.Worker.ReadPartition:output_type -> queng.worker.Batch
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	8,  // 0: queng.worker.TaskRequest.plan:type_name -> queng.plan.Plan
+	2,  // 1: queng.worker.TaskMessage.event:type_name -> queng.worker.TaskEvent
+	5,  // 2: queng.worker.TaskMessage.result:type_name -> queng.worker.TaskResult
+	9,  // 3: queng.worker.TaskEvent.time:type_name -> google.protobuf.Timestamp
+	3,  // 4: queng.worker.TaskEvent.started:type_name -> queng.worker.TaskStarted
+	4,  // 5: queng.worker.TaskEvent.completed:type_name -> queng.worker.TaskCompleted
+	10, // 6: queng.worker.TaskCompleted.duration:type_name -> google.protobuf.Duration
+	0,  // 7: queng.worker.Worker.RunTask:input_type -> queng.worker.TaskRequest
+	6,  // 8: queng.worker.Worker.ReadPartition:input_type -> queng.worker.PartitionRequest
+	1,  // 9: queng.worker.Worker.RunTask:output_type -> queng.worker.TaskMessage
+	7,  // 10: queng.worker.Worker.ReadPartition:output_type -> queng.worker.Batch
+	9,  // [9:11] is the sub-list for method output_type
+	7,  // [7:9] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_workerapi_worker_proto_init() }
@@ -317,13 +604,21 @@ func file_workerapi_worker_proto_init() {
 	if File_workerapi_worker_proto != nil {
 		return
 	}
+	file_workerapi_worker_proto_msgTypes[1].OneofWrappers = []any{
+		(*TaskMessage_Event)(nil),
+		(*TaskMessage_Result)(nil),
+	}
+	file_workerapi_worker_proto_msgTypes[2].OneofWrappers = []any{
+		(*TaskEvent_Started)(nil),
+		(*TaskEvent_Completed)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_workerapi_worker_proto_rawDesc), len(file_workerapi_worker_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
