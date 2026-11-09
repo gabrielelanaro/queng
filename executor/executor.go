@@ -64,8 +64,8 @@ func (e LocalExecutor) Submit(ctx context.Context, task Task, report EventHandle
 			report(TaskEvent{JobID: task.JobID, StageID: task.Stage.ID, TaskID: task.ID, PartitionID: task.PartitionID, Time: started, Kind: TaskStarted})
 		}
 		var batches []datasource.RecordBatch
-		execCtx := execution.Context{Context: ctx, JobID: task.JobID, TaskID: task.ID, ShufflePartitions: e.ShufflePartitions, Exchange: e.Exchange}
-		for batch, err := range task.Stage.Plan.Execute(execCtx, task.PartitionID) {
+		env := execution.Environment{JobID: task.JobID, TaskID: task.ID, ShufflePartitions: e.ShufflePartitions, Exchange: e.Exchange}
+		for batch, err := range task.Stage.Plan.Execute(ctx, env, task.PartitionID) {
 			if err != nil {
 				for _, batch := range batches {
 					batch.Release()

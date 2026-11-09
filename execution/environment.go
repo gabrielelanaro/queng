@@ -8,9 +8,8 @@ import (
 	"github.com/gabrielelanaro/queng/datasource"
 )
 
-// Context holds the job and executor services for one task execution.
-type Context struct {
-	Context           context.Context
+// Environment holds the job information and services for one task execution.
+type Environment struct {
 	JobID             string
 	TaskID            int
 	ShufflePartitions int

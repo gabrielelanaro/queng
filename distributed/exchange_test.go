@@ -53,7 +53,7 @@ func TestExchangeWritePartitionsRowsByKey(t *testing.T) {
 		Partitioning: HashPartitioning{Keys: []int{0}},
 	}
 
-	for batch, err := range writer.Execute(execution.Context{JobID: "job-1", TaskID: 7, Exchange: store, ShufflePartitions: 2}, 0) {
+	for batch, err := range writer.Execute(context.Background(), execution.Environment{JobID: "job-1", TaskID: 7, Exchange: store, ShufflePartitions: 2}, 0) {
 		if err != nil {
 			t.Fatalf("ExchangeWriteExec.Execute() returned an error: %v", err)
 		}
@@ -115,7 +115,7 @@ func TestExchangeReadCollectsPartitionFromAllProducers(t *testing.T) {
 
 	reader := ExchangeReadExec{StageID: 1, OutputSchema: source.Schema(), Partitioning: HashPartitioning{Keys: []int{0}}}
 	var batches int
-	for batch, err := range reader.Execute(execution.Context{Context: context.Background(), JobID: "job-1", Exchange: store}, 2) {
+	for batch, err := range reader.Execute(context.Background(), execution.Environment{JobID: "job-1", Exchange: store}, 2) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -141,8 +141,8 @@ func TestSinglePartitionExchangeWritesAllRowsToPartitionZero(t *testing.T) {
 	}
 	// Multiple producers must gather into the same output partition.
 	for taskID := range 2 {
-		ctx := execution.Context{JobID: "gather", TaskID: taskID, Exchange: store, ShufflePartitions: 3}
-		for batch, err := range writer.Execute(ctx, 0) {
+		env := execution.Environment{JobID: "gather", TaskID: taskID, Exchange: store, ShufflePartitions: 3}
+		for batch, err := range writer.Execute(context.Background(), env, 0) {
 			batch.Release()
 			if err != nil {
 				t.Fatal(err)

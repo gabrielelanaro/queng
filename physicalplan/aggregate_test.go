@@ -1,6 +1,7 @@
 package physicalplan_test
 
 import (
+	"context"
 	"iter"
 	"reflect"
 	"strings"
@@ -16,7 +17,7 @@ import (
 type batchInput struct{ batchesSource }
 
 func (batchInput) Children() []physicalplan.PhysicalPlan { return nil }
-func (s batchInput) Execute(_ execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (s batchInput) Execute(_ context.Context, _ execution.Environment, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return s.Scan(partitionID, nil)
 }
 
@@ -85,7 +86,7 @@ func TestFinalAverageMergesSumsAndCountsPerGroup(t *testing.T) {
 func assertAggregateRows(t *testing.T, plan physicalplan.HashAggregateExec, want map[string][]any) {
 	t.Helper()
 	got := make(map[string][]any)
-	for batch, err := range plan.Execute(execution.Context{}, 0) {
+	for batch, err := range plan.Execute(context.Background(), execution.Environment{}, 0) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -135,7 +136,7 @@ func TestUngroupedFinalAverageReturnsOneRow(t *testing.T) {
 			}
 
 			var got []any
-			for batch, err := range plan.Execute(execution.Context{}, 0) {
+			for batch, err := range plan.Execute(context.Background(), execution.Environment{}, 0) {
 				if err != nil {
 					t.Fatal(err)
 				}

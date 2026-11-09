@@ -1,6 +1,7 @@
 package physicalplan_test
 
 import (
+	"context"
 	"iter"
 	"reflect"
 	"testing"
@@ -45,7 +46,7 @@ func TestProjectionKeepsColumnAliveUntilOutputIsReleased(t *testing.T) {
 		Expr: []physicalplan.PhysicalExpr{physicalplan.ColumnExpr{Index: 0}},
 	}
 
-	for batch, err := range plan.Execute(execution.Context{}, 0) {
+	for batch, err := range plan.Execute(context.Background(), execution.Environment{}, 0) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
@@ -111,7 +112,7 @@ func TestScanExecReturnsQualifiedSchema(t *testing.T) {
 	if !reflect.DeepEqual(plan.Schema(), outputSchema) {
 		t.Fatalf("Schema() = %#v; want %#v", plan.Schema(), outputSchema)
 	}
-	for batch, err := range plan.Execute(execution.Context{}, 0) {
+	for batch, err := range plan.Execute(context.Background(), execution.Environment{}, 0) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
@@ -139,7 +140,7 @@ func TestProjectionExecReturnsSelectedColumn(t *testing.T) {
 	}
 
 	var values []any
-	for result, err := range plan.Execute(execution.Context{}, 0) {
+	for result, err := range plan.Execute(context.Background(), execution.Environment{}, 0) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
@@ -179,7 +180,7 @@ func TestHashAggregateExecAveragesEachGroupAcrossBatches(t *testing.T) {
 	}
 
 	got := map[any]any{}
-	for batch, err := range plan.Execute(execution.Context{}, 0) {
+	for batch, err := range plan.Execute(context.Background(), execution.Environment{}, 0) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
@@ -222,7 +223,7 @@ func TestHashJoinExecMatchesAndPreservesUnmatchedLeftRows(t *testing.T) {
 	}
 
 	var rows [][]any
-	for batch, err := range plan.Execute(execution.Context{}, 0) {
+	for batch, err := range plan.Execute(context.Background(), execution.Environment{}, 0) {
 		if err != nil {
 			t.Fatalf("Execute() returned an error: %v", err)
 		}
@@ -254,7 +255,7 @@ func TestHashJoinExecRejectsMultipleKeys(t *testing.T) {
 	plan := physicalplan.HashJoinExec{
 		Type: logicalplan.LeftJoin, LeftKeys: []int{0, 1}, RightKeys: []int{0, 1},
 	}
-	for _, err := range plan.Execute(execution.Context{}, 0) {
+	for _, err := range plan.Execute(context.Background(), execution.Environment{}, 0) {
 		if err == nil {
 			t.Fatal("Execute() succeeded with multiple join keys")
 		}
@@ -276,7 +277,7 @@ func TestScanExecReturnsSelectedColumnsWithQualifiedSchema(t *testing.T) {
 	}}
 	plan := physicalplan.ScanExec{Source: source, Columns: []int{1}, OutputSchema: output}
 	var values []any
-	for batch, err := range plan.Execute(execution.Context{}, 0) {
+	for batch, err := range plan.Execute(context.Background(), execution.Environment{}, 0) {
 		if err != nil {
 			t.Fatal(err)
 		}

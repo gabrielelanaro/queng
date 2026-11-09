@@ -1,6 +1,7 @@
 package physicalplan
 
 import (
+	"context"
 	"fmt"
 	"iter"
 	"reflect"
@@ -22,18 +23,18 @@ func joinKey(batch datasource.RecordBatch, row, index int) (any, error) {
 	return value, nil
 }
 
-func (j HashJoinExec) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (j HashJoinExec) Execute(ctx context.Context, env execution.Environment, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
 		if j.Type != logicalplan.LeftJoin || len(j.LeftKeys) != 1 || len(j.RightKeys) != 1 {
 			yield(datasource.RecordBatch{}, fmt.Errorf("hash join requires a left join with one key per input"))
 			return
 		}
-		table, err := j.buildHashTable(ctx, partitionID)
+		table, err := j.buildHashTable(ctx, env, partitionID)
 		if err != nil {
 			yield(datasource.RecordBatch{}, err)
 			return
 		}
-		for batch, err := range j.Left.Execute(ctx, partitionID) {
+		for batch, err := range j.Left.Execute(ctx, env, partitionID) {
 			if err != nil {
 				yield(datasource.RecordBatch{}, err)
 				return
@@ -51,9 +52,9 @@ func (j HashJoinExec) Execute(ctx execution.Context, partitionID int) iter.Seq2[
 	}
 }
 
-func (j HashJoinExec) buildHashTable(ctx execution.Context, partitionID int) (map[any][][]any, error) {
+func (j HashJoinExec) buildHashTable(ctx context.Context, env execution.Environment, partitionID int) (map[any][][]any, error) {
 	table := make(map[any][][]any)
-	for batch, err := range j.Right.Execute(ctx, partitionID) {
+	for batch, err := range j.Right.Execute(ctx, env, partitionID) {
 		if err != nil {
 			return nil, err
 		}

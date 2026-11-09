@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -110,7 +111,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 	var records [][]string
 	for partition := range partitionCount {
-		for batch, err := range physical.Execute(execution.Context{}, partition) {
+		for batch, err := range physical.Execute(context.Background(), execution.Environment{}, partition) {
 			if err != nil {
 				return err
 			}

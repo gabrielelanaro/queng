@@ -1,6 +1,7 @@
 package planserde_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -56,7 +57,7 @@ func TestRoundTripProjectionOverCSV(t *testing.T) {
 	}
 	var values []any
 	var batches int
-	for batch, err := range got.Execute(execution.Context{}, 0) {
+	for batch, err := range got.Execute(context.Background(), execution.Environment{}, 0) {
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +150,7 @@ func TestRoundTripGroupedAverage(t *testing.T) {
 		t.Fatal(err)
 	}
 	var values []any
-	for batch, err := range got.Execute(execution.Context{}, 0) {
+	for batch, err := range got.Execute(context.Background(), execution.Environment{}, 0) {
 		if err != nil {
 			t.Fatal(err)
 		}

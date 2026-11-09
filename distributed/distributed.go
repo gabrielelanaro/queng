@@ -2,6 +2,7 @@
 package distributed
 
 import (
+	"context"
 	"fmt"
 	"iter"
 
@@ -33,18 +34,18 @@ func (e ExchangeWriteExec) Children() []physicalplan.PhysicalPlan {
 	return []physicalplan.PhysicalPlan{e.Input}
 }
 
-func (e ExchangeWriteExec) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+func (e ExchangeWriteExec) Execute(ctx context.Context, env execution.Environment, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
 	return func(yield func(datasource.RecordBatch, error) bool) {
-		if ctx.Exchange == nil {
+		if env.Exchange == nil {
 			yield(datasource.RecordBatch{}, fmt.Errorf("exchange store is not configured"))
 			return
 		}
-		for batch, err := range e.Input.Execute(ctx, partitionID) {
+		for batch, err := range e.Input.Execute(ctx, env, partitionID) {
 			if err != nil {
 				yield(datasource.RecordBatch{}, err)
 				return
 			}
-			err = e.writeBatch(ctx, batch)
+			err = e.writeBatch(env, batch)
 			batch.Release()
 			if err != nil {
 				yield(datasource.RecordBatch{}, err)
@@ -55,11 +56,11 @@ func (e ExchangeWriteExec) Execute(ctx execution.Context, partitionID int) iter.
 }
 
 // writeBatch groups rows by output partition and writes each group as a batch.
-func (e ExchangeWriteExec) writeBatch(ctx execution.Context, batch datasource.RecordBatch) error {
-	partitionCount := e.Partitioning.PartitionCount(ctx.ShufflePartitions)
+func (e ExchangeWriteExec) writeBatch(env execution.Environment, batch datasource.RecordBatch) error {
+	partitionCount := e.Partitioning.PartitionCount(env.ShufflePartitions)
 	if partitionCount == 1 {
-		key := execution.ExchangeKey{JobID: ctx.JobID, StageID: e.StageID, TaskID: ctx.TaskID, PartitionID: 0}
-		return ctx.Exchange.Write(key, batch)
+		key := execution.ExchangeKey{JobID: env.JobID, StageID: e.StageID, TaskID: env.TaskID, PartitionID: 0}
+		return env.Exchange.Write(key, batch)
 	}
 	rowsByPartition := make([][]int, partitionCount)
 	for row := range batch.Column(0).Len() {
@@ -77,13 +78,13 @@ func (e ExchangeWriteExec) writeBatch(ctx execution.Context, batch datasource.Re
 		if err != nil {
 			return err
 		}
-		key := execution.ExchangeKey{JobID: ctx.JobID, StageID: e.StageID, TaskID: ctx.TaskID, PartitionID: partitionID}
-		err = ctx.Exchange.Write(key, output)
+		key := execution.ExchangeKey{JobID: env.JobID, StageID: e.StageID, TaskID: env.TaskID, PartitionID: partitionID}
+		err = env.Exchange.Write(key, output)
 		output.Release()
 		if err != nil {
 			return err
 		}
-		log.Info().Str("job", ctx.JobID).Int("stage", e.StageID).Int("task", ctx.TaskID).Int("partition", partitionID).Int("rows", len(rows)).Msg("shuffle batch written")
+		log.Info().Str("job", env.JobID).Int("stage", e.StageID).Int("task", env.TaskID).Int("partition", partitionID).Int("rows", len(rows)).Msg("shuffle batch written")
 	}
 	return nil
 }
@@ -99,13 +100,13 @@ func (e ExchangeReadExec) Schema() datasource.Schema { return e.OutputSchema }
 
 func (ExchangeReadExec) Children() []physicalplan.PhysicalPlan { return nil }
 
-func (e ExchangeReadExec) Execute(ctx execution.Context, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
-	if ctx.Exchange == nil {
+func (e ExchangeReadExec) Execute(ctx context.Context, env execution.Environment, partitionID int) iter.Seq2[datasource.RecordBatch, error] {
+	if env.Exchange == nil {
 		return func(yield func(datasource.RecordBatch, error) bool) {
 			yield(datasource.RecordBatch{}, fmt.Errorf("exchange store is not configured"))
 		}
 	}
-	return ctx.Exchange.ReadPartition(ctx.Context, ctx.JobID, e.StageID, partitionID)
+	return env.Exchange.ReadPartition(ctx, env.JobID, e.StageID, partitionID)
 }
 
 // BuildStages splits a physical plan at join inputs, in dependency order.
